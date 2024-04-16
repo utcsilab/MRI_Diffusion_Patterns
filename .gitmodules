@@ -1,0 +1,3 @@
+[submodule "src/recon_algorithms/edm"]
+	path = src/recon_algorithms/edm
+	url = git@github.com:Sriram-Ravula/edm.git
