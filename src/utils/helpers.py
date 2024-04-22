@@ -109,7 +109,7 @@ def get_min_max(x):
         x (torch.Tensor): The input tensor. [N, 2, H, W] real-valued.
     
     Returns:
-        tuple: The minimum and maximum pixel values. (torch.Tensor, torch.Tensor)
+        tuple: The minimum and maximum pixel values. (torch.Tensor, torch.Tensor) each [N, 1, 1, 1] real-valued.
     """
     norm_mins = torch.amin(x, dim=(1,2,3), keepdim=True) #[N, 1, 1, 1]
     norm_maxes = torch.amax(x, dim=(1,2,3), keepdim=True) #[N, 1, 1, 1]
@@ -172,4 +172,22 @@ def MRI_adjoint_nomask(y, s_maps):
     x = torch.sum(x_raw, axis=1) #[N, H, W] complex
 
     return complex_to_real(x)
+
+def hard_consistency(x, P, S, FSx):
+    """
+    Hard consistency operator for MRI, i.e. Adjoint((1-P)FSx^ + PFSx).
+    
+    Args:
+        x (torch.Tensor): The input tensor, unnormalized. [N, 2, H, W] real-valued.
+        P (torch.Tensor): The mask. [N, 1, H, W] real-valued.
+        S (torch.Tensor): The coil sensitivity maps. [N, C, H, W] complex.
+        FSx (torch.Tensor): The fully-sampled k-space data. [N, C, H, W] complex.
+    
+    Returns:
+        torch.Tensor: The estimated image projected onto known measurements. [N, 2, H, W] real-valued.
+    """
+    y_repaint = (1 - P) * MRI_forward_nomask(x, S) + P * FSx
+    x_repaint = get_mvue_torch(y_repaint, S)
+    
+    return x_repaint
 
