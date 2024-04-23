@@ -1,16 +1,16 @@
 import torch
 import numpy as np
 
-class Fixed1dPattern:
+class Fixed2dPattern:
     def __init__(self, num_acs_lines, orientation, R, length, device):
         """
-        A fixed 1D sampling pattern.
+        A fixed 2d sampling pattern.
         
         Args:
             num_acs_lines (int): Number of ACS lines to keep in the center.
             orientation (str): Orientation of the sampling pattern. Either 'horizontal' or 'vertical'.
             R (int): Acceleration factor.
-            length (int): Length of the 1D sampling pattern.
+            length (int): Length of the 2d sampling pattern.
             device (torch.device): Device to store the mask on.
         """
         self.num_acs_lines = num_acs_lines
