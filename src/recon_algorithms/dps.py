@@ -49,12 +49,14 @@ class DPS:
             torch.Tensor: The reconstructed image. [N, 2, H, W] real-valued.
         """
         # Get noise schedule.
-        t_steps = get_noise_schedule(self.steps, self.sigma_max, self.sigma_min, self.rho, self.net, x_init.device)
+        t_steps = get_noise_schedule(steps=self.steps, sigma_max=self.sigma_max, sigma_min=self.sigma_min, 
+                                     rho=self.rho, net=self.net, device=x_init.device)
         
         # Perform MRI diffusion sampling.
-        x_out = MRI_diffusion_sampling(self.net, x_init, t_steps, FSx, P, S, "dps", self.hard_consistent_output,
-                                       self.S_churn, self.S_min, self.S_max, self.S_noise,
-                                       normalize_grad=self.normalize_grad, likelihood_step_size=self.likelihood_step_size)
+        x_out = MRI_diffusion_sampling(net=self.net, x_init=x_init, t_steps=t_steps, FSx=FSx, P=P, S=S,
+                                       alg_type="dps", hard_consistent_output=self.hard_consistent_output,
+                                       S_churn=self.S_churn, S_min=self.S_min, S_max=self.S_max, S_noise=self.S_noise,
+                                       likelihood_step_size=self.likelihood_step_size, normalize_grad=self.normalize_grad)
         
         return x_out
     
