@@ -85,13 +85,17 @@ def bernouli_straight_through_sample(probs):
     #propagate values of hard samples and gradients of probs
     return hard_samples.detach() + (probs - probs.detach()) 
 
-def get_random_logits(length, dist):
+def get_random_logits(length, dist, normalize=False, norm_mean=0):
     """
     Generates a set of random logits for a binary decision.
     
     Args:
         length (int): The number of logits to generate.
         dist (str): The distribution to sample from. Options in [normal, uniform, random].
+        normalize (bool): Whether to normalize the logits to have a mean of norm_mean in probability. 
+                          Defaults to False.
+        norm_mean (float): The desired mean of the probabilities. Only used if normalize is True.
+                           Defaults to 0.
     
     Returns:
         torch.Tensor: The generated logits. Shape [length].
@@ -105,6 +109,11 @@ def get_random_logits(length, dist):
             probs = torch.rand(length)
             
         logits = torch.special.logit(probs, eps=1e-3)
+    
+    if normalize:
+        probs = torch.sigmoid(logits)
+        normed_probs = normalize_probs(probs=probs, mean=norm_mean)
+        logits = torch.special.logit(normed_probs, eps=1e-3)
     
     return logits
 

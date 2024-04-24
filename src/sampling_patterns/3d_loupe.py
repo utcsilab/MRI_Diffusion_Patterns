@@ -53,11 +53,10 @@ class Loupe3d:
         self.sparsity_level = ((length**2)/R - num_acs_lines**2) / self.num_weights #proportion of ones desired from the weights; informs the mean probability
         
         #(4) Initialize the weights
-        logits = get_random_logits(length=self.num_weights, dist=init_dist).to(device=device, dtype=torch.float32)
-        probs = torch.sigmoid(logits)
-        normed_probs = normalize_probs(probs=probs, mean=self.sparsity_level)
-        
-        self.weights = torch.special.logit(normed_probs, eps=1e-3)
+        self.weights = get_random_logits(length=self.num_weights, 
+                                         dist=init_dist, 
+                                         normalize=True, 
+                                         norm_mean=self.sparsity_level).to(device=device, dtype=torch.float32)
         self.weights.requires_grad_()
     
     def sample_mask(self, n=1):
