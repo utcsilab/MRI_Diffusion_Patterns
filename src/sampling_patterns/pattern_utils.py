@@ -58,10 +58,10 @@ def bernouli_gumbel_sample(probs, tau):
         return 0. * probs
     
     #Sampling requires us to draw a gumbel sample for each category/binary outcome
-    prob_01 = torch.stack((1. - probs, probs), dim=1) #[m, 2]
+    prob_01 = torch.stack((1. - probs, probs), dim=0) #[2, (dims)]
 
     #pytorch function requires un-normalized log-probabilities
-    gumbel_sample = F.gumbel_softmax(torch.log(prob_01), tau=tau, hard=True)[:, 1] #[m]
+    gumbel_sample = F.gumbel_softmax(torch.log(prob_01), tau=tau, hard=True)[1] #[(dims)]
 
     return gumbel_sample
 
@@ -141,3 +141,27 @@ def get_furthest_point_3d(query_point_inds, key_point_inds, grid_x, grid_y, incl
     
     return out_idx
 
+def shape_mask_3d(length, flat_input, flat_input_idx, on_idx, off_idx):
+    """
+    Shapes a given flat set of weights into a 3D mask.
+    
+    Args:
+        length (int): The length of the 3D mask.
+        flat_input (torch.Tensor): The flat input weights. Shape [n, m] or [m].
+        flat_input_idx (np.ndarray): The indexes of the input weights in the flattened final mask. Shape [m].
+        on_idx (np.ndarray): Indexes of pattern entries to set to 1.
+        off_idx (np.ndarray): Indexes of pattern entries to set to 0.
+    
+    Returns:
+        torch.Tensor: The shaped 3D mask. Shape [n, length, length] (n=1 if flat_input is 1d).
+    """
+    if flat_input.dim() == 1:
+        flat_input = flat_input.unsqueeze(0)
+    n = flat_input.shape[0]
+    
+    flat_output = torch.zeros((n, length**2), device=flat_input.device, dtype=flat_input.dtype)
+    flat_output[:, flat_input_idx] = flat_input
+    flat_output[:, on_idx] = 1.
+    flat_output[:, off_idx] = 0.
+    
+    return flat_output.view(n, length, length)

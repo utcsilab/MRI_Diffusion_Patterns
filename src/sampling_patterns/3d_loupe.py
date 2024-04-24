@@ -1,6 +1,11 @@
 import torch
 import numpy as np
-from src.sampling_patterns.pattern_utils import get_xy_radius_grid, get_random_logits, normalize_probs
+from src.sampling_patterns.pattern_utils import (get_xy_radius_grid, 
+                                                 get_random_logits, 
+                                                 normalize_probs, 
+                                                 bernouli_gumbel_sample, 
+                                                 bernouli_straight_through_sample,
+                                                 shape_mask_3d)
 
 class Loupe3d:
     def __init__(self, num_acs_lines, R, length, device, cut_corners, init_dist, sampler, tau=1.0):
@@ -54,4 +59,47 @@ class Loupe3d:
         
         self.weights = torch.special.logit(normed_probs, eps=1e-3)
         self.weights.requires_grad_()
+    
+    def sample_mask(self, n=1):
+        """
+        Samples a pattern using the learned weights.
         
+        Args:
+            n (int): Number of masks to sample.
+            
+        Returns:
+            torch.Tensor: Sampling mask. [n, 1, length, length]. 
+        """
+        probs = torch.sigmoid(self.weights)
+        normed_probs = normalize_probs(probs=probs, mean=self.sparsity_level)
+        normed_probs = normed_probs.unsqueeze(0).repeat(n, 1) #[n, num_weights]
+        if self.sampler == 'gumbel':
+            flat_sample = bernouli_gumbel_sample(probs=normed_probs, tau=self.tau)
+        elif self.sampler == 'straight_through':
+            flat_sample = bernouli_straight_through_sample(probs=normed_probs)
+        sampled_mask = shape_mask_3d(length=self.length, 
+                                     flat_input=flat_sample, 
+                                     flat_input_idx=self.insert_mask_idx, 
+                                     on_idx=self.acs_idx, 
+                                     off_idx=self.always_off_idx) #[n, length, length]
+        
+        return sampled_mask.unsqueeze(1) #[n, 1, length, length]
+    
+    @property
+    def probabilistic_mask(self):
+        """
+        Returns the probabilistic mask.
+        
+        Returns:
+            torch.Tensor: The probabilistic mask. [1, 1, length, length].
+        """
+        probs = torch.sigmoid(self.weights)
+        normed_probs = normalize_probs(probs=probs, mean=self.sparsity_level)
+        prob_mask = shape_mask_3d(length=self.length, 
+                                  flat_input=normed_probs, 
+                                  flat_input_idx=self.insert_mask_idx, 
+                                  on_idx=self.acs_idx, 
+                                  off_idx=self.always_off_idx) #[1, length, length]
+        
+        return prob_mask.unsqueeze(0) #[1, 1, length, length]
+    
