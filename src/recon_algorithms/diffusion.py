@@ -1,17 +1,15 @@
 from src.recon_algorithms.diffusion_utils import get_noise_schedule, MRI_diffusion_sampling
 
-class Diffusion_CG:
-    def __init__(self, net, cg_lambda, cg_max_iter, cg_eps, hard_consistent_output,
-                 steps, rho, S_churn, S_min, S_max, S_noise, sigma_min, sigma_max):
+class DiffusionMRIReconstruction:
+    def __init__(self, net, hard_consistent_output, alg_type, 
+                 steps, rho, S_churn, S_min, S_max, S_noise, sigma_min, sigma_max, **kwargs):
         """
-        Class that performs diffusion with conjugate gradient for MRI reconstruction.
+        Class that performs MRI reconstruction using Diffusion models.
         
         Args:
             net (torch.nn.Module): The EDM diffusion network.
-            cg_lambda (float): The CG regularization parameter.
-            cg_max_iter (int): The maximum number of CG iterations.
-            cg_eps (float): The CG stopping criterion.
             hard_consistent_output (bool): Whether to enforce hard consistency in the final output.
+            alg_type (str): The algorithm type for sampling. Value should be one of ["dps", "shallow_dps", "cg", "repaint"].
             steps (int): The number of steps in the reverse diffusion process.
             rho (float): The noise schedule parameter in EDM.
             S_churn (float): EDM randomness parameter.
@@ -20,13 +18,12 @@ class Diffusion_CG:
             S_noise (float): EDM sampling parameter.
             sigma_min (float): The minimum/ending noise standard deviation.
             sigma_max (float): The maximum/starting noise standard deviation.
+            **kwargs: Additional arguments for specific posterior sampling algorithms.
         """
         self.net = net
         
-        self.cg_lambda = cg_lambda
-        self.cg_max_iter = cg_max_iter
-        self.cg_eps = cg_eps
         self.hard_consistent_output = hard_consistent_output
+        self.alg_type = alg_type
         
         self.steps = steps
         self.rho = rho
@@ -37,9 +34,11 @@ class Diffusion_CG:
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         
+        self.kwargs = kwargs
+    
     def __call__(self, x_init, FSx, P, S):
         """
-        Performs performs diffusion with conjugate gradient for MRI reconstruction.
+        Performs performs MRI reconstruction.
         
         Args:
             x_init (torch.Tensor): The initial image. Should be normalized and noised. [N, 2, H, W] real-valued.
@@ -56,9 +55,9 @@ class Diffusion_CG:
         
         # Perform MRI diffusion sampling.
         x_out = MRI_diffusion_sampling(net=self.net, x_init=x_init, t_steps=t_steps, FSx=FSx, P=P, S=S,
-                                       alg_type="dps", hard_consistent_output=self.hard_consistent_output,
+                                       alg_type=self.alg_type, hard_consistent_output=self.hard_consistent_output,
                                        S_churn=self.S_churn, S_min=self.S_min, S_max=self.S_max, S_noise=self.S_noise,
-                                       cg_lambda=self.cg_lambda, cg_max_iter=self.cg_max_iter, cg_eps=self.cg_eps)
+                                       **self.kwargs)
         
         return x_out
     
