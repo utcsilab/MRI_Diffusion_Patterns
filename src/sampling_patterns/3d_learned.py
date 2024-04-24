@@ -7,10 +7,10 @@ from src.sampling_patterns.pattern_utils import (get_xy_radius_grid,
                                                  bernouli_straight_through_sample,
                                                  shape_mask_3d)
 
-class Loupe3d:
+class Learned3d:
     def __init__(self, num_acs_lines, R, length, device, cut_corners, init_dist, sampler, tau=1.0):
         """
-        A LOUPE-parameterized 3D pattern.
+        A Learned 3D pattern.
         
         Args:
             num_acs_lines (int): Number of ACS lines to keep in the center.
@@ -39,26 +39,21 @@ class Loupe3d:
         
         self.acs_idx = flat_n_inds[acs_idx[:, None], acs_idx].flatten() #fancy indexing grabs a square from center
         
-        #(2) Create the list of indexes to always keep off
+        #(2) Create the list of indexes to always keep off and on
         self.always_off_idx = np.empty(0, dtype=np.int64)
         if cut_corners:
             _, _, radius_grid = get_xy_radius_grid(length)
             self.always_off_idx = flat_n_inds[radius_grid > 1].flatten()
         
-        #(3) Create the list of flattened 2d indexes to insert the flattened pattern weights
-        self.insert_mask_idx = np.array([i for i in range(length**2) if i not in self.acs_idx and i not in self.always_off_idx])
-        
-        self.num_weights = len(self.insert_mask_idx)
-        
-        self.sparsity_level = ((length**2)/R - num_acs_lines**2) / self.num_weights #proportion of ones desired from the weights; informs the mean probability
-        
-        #(4) Initialize the weights
+        self.always_on_idx = np.empty(0, dtype=np.int64)
+                
+        #(3) Initialize the weights
         self.weights = get_random_logits(length=self.num_weights, 
                                          dist=init_dist, 
                                          normalize=True, 
                                          norm_mean=self.sparsity_level).to(device=device, dtype=torch.float32)
         self.weights.requires_grad_()
-    
+
     def sample_mask(self, n=1):
         """
         Samples a pattern using the learned weights.
@@ -79,7 +74,7 @@ class Loupe3d:
         sampled_mask = shape_mask_3d(length=self.length, 
                                      flat_input=flat_sample, 
                                      flat_input_idx=self.insert_mask_idx, 
-                                     on_idx=self.acs_idx, 
+                                     on_idx=np.union1d(self.acs_idx, self.always_on_idx), 
                                      off_idx=self.always_off_idx) #[n, length, length]
         
         return sampled_mask.unsqueeze(1) #[n, 1, length, length]
@@ -97,8 +92,43 @@ class Loupe3d:
         prob_mask = shape_mask_3d(length=self.length, 
                                   flat_input=normed_probs, 
                                   flat_input_idx=self.insert_mask_idx, 
-                                  on_idx=self.acs_idx, 
+                                  on_idx=np.union1d(self.acs_idx, self.always_on_idx), 
                                   off_idx=self.always_off_idx) #[1, length, length]
         
         return prob_mask.unsqueeze(0) #[1, 1, length, length]
+    
+    @property
+    def insert_mask_idx(self):
+        """
+        Returns the list of flattened 2d indexes to insert the flattened pattern weights.
+        
+        Returns:
+            np.ndarray: The indexes. [num_weights].
+        """
+        exclusion_list = np.union1d(np.union1d(self.acs_idx, self.always_on_idx), self.always_off_idx)
+        
+        return np.array([i for i in range(self.length**2) if i not in exclusion_list])
+    
+    @property
+    def sparsity_level(self):
+        """
+        Calculated and returned the current desired sparsity level of the learned weights.
+        
+        Returns:
+            float: The current desired sparsity level.
+        """
+        total_on = self.length**2 / self.R
+        already_on = len(np.union1d(self.acs_idx, self.always_on_idx))
+        
+        return (total_on - already_on) / self.num_weights
+    
+    @property
+    def num_weights(self):
+        """
+        Returns the number of weights in the pattern.
+        
+        Returns:
+            int: The number of weights.
+        """
+        return len(self.insert_mask_idx)
     
