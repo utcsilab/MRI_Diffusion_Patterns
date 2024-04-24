@@ -84,7 +84,7 @@ class Loupe3d:
         
         return sampled_mask.unsqueeze(1) #[n, 1, length, length]
     
-    @property
+    @torch.no_grad()
     def probabilistic_mask(self):
         """
         Returns the probabilistic mask.
