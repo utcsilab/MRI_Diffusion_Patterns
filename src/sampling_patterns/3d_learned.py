@@ -5,7 +5,8 @@ from src.sampling_patterns.pattern_utils import (get_xy_radius_grid,
                                                  normalize_probs, 
                                                  bernouli_gumbel_sample, 
                                                  bernouli_straight_through_sample,
-                                                 shape_mask_3d)
+                                                 shape_mask_3d,
+                                                 get_furthest_point_3d)
 
 class Learned3d:
     def __init__(self, num_acs_lines, R, length, device, cut_corners, init_dist, sampler, tau=1.0):
@@ -131,4 +132,50 @@ class Learned3d:
             int: The number of weights.
         """
         return len(self.insert_mask_idx)
+    
+    def greedy_topk_step(self, k, include_conjugates=False):
+        """
+        Takes one step of greedy max-min neighbor optimization with a given k.
+        Returns True if the desired acceleration is met, else returns False.
+
+        Args:
+            k (int, optional): Top-k parameter for greedy optimization. Defaults to 1.
+            include_conjugates (bool, optional): Whether to include the conjugates of the existing points 
+                                                     when considering nearest points. Defaults to False.
+        
+        Returns:
+            finished_flag (bool): Flag that indicates whether the desired acceleration level is met.
+        """
+        if self.sparsity_level <= 0:
+            return True
+        
+        if not hasattr(self, 'grid_x'):
+            self.grid_x, self.grid_y, _ = get_xy_radius_grid(self.length)
+            self.grid_x = self.grid_x.to(device=self.device)
+            self.grid_y = self.grid_y.to(device=self.device)
+        
+        #Calculate the point that's (a) in the top-k negative gradients
+        # and (b) furthest from the already selected points
+        top_k_inds = torch.topk(-self.weights.grad, k=k)[1].tolist() 
+        selected_point_idx = get_furthest_point_3d(query_point_inds=self.insert_mask_idx[top_k_inds],
+                                                   key_point_inds=np.union1d(self.acs_idx, self.always_on_idx),
+                                                   grid_x=self.grid_x,
+                                                   grid_y=self.grid_y,
+                                                   include_conjugate_keys=include_conjugates)
+        top_k_inds = [top_k_inds[selected_point_idx]] 
+        
+        self.always_on_idx = np.append(self.always_on_idx, self.insert_mask_idx[top_k_inds])
+        
+        #Remove the selected point from the weights and gradients
+        keep_inds = [i for i in range(self.weights.numel()) if i not in top_k_inds]
+        weights = torch.empty(len(keep_inds),
+                              dtype=self.weights.dtype,
+                              layout=self.weights.layout,
+                              device=self.weights.device,
+                              requires_grad=True)
+        weights.data = self.weights[keep_inds].data
+        self.weights = weights
+        
+        finished_flag = True if self.sparsity_level <= 0 else False
+        return finished_flag
     
