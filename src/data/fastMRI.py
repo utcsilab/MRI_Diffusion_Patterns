@@ -169,9 +169,9 @@ class BrainMultiCoil(Dataset):
         # ksp /= gt_mvue_scale_factor
         # gt_mvue /= gt_mvue_scale_factor
 
-        gt_mvue_two_channel = np.float16(np.zeros((2,) + gt_mvue.shape))
-        gt_mvue_two_channel[0] = np.float16(np.real(gt_mvue))
-        gt_mvue_two_channel[1] = np.float16(np.imag(gt_mvue))
+        gt_mvue_two_channel = np.zeros((2,) + gt_mvue.shape, dtype=np.float32)
+        gt_mvue_two_channel[0] = np.real(gt_mvue).astype(np.float32)
+        gt_mvue_two_channel[1] = np.imag(gt_mvue).astype(np.float32)
 
         #Apply optional K-space padding
         #This allows us to make the non-batch dimensions of all the samples homogenous,
@@ -182,19 +182,14 @@ class BrainMultiCoil(Dataset):
                 s_maps = np.pad(s_maps, ((0,self.kspace_pad - s_maps.shape[0]), (0,0), (0,0)))
 
         # Output
-        sample = {
-                  'ksp': ksp, #[C, H, W] complex64 numpy array
-                  's_maps': s_maps, #[C, H, W] complex64 numpy array
+        sample = {'ksp': ksp.astype(np.complex64), #[C, H, W] complex64 numpy array
+                  's_maps': s_maps.astype(np.complex64), #[C, H, W] complex64 numpy array
                   'gt_image': gt_mvue_two_channel.astype(np.float32),
                   'scan_idx': scan_idx,
                   'slice_idx': slice_idx}
         
         if self.cache_data:
-            self.dataset_cache[str(idx)] = {'ksp': torch.from_numpy(ksp), 
-                                            's_maps': torch.from_numpy(s_maps), 
-                                            'gt_image': torch.from_numpy(gt_mvue_two_channel.astype(np.float32)),
-                                            'scan_idx': scan_idx,
-                                            'slice_idx': slice_idx}
+            self.dataset_cache[str(idx)] = sample
 
         return sample, idx
 
