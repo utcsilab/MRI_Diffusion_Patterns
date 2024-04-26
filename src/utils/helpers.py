@@ -1,5 +1,7 @@
 import torch
 import torch.fft as torch_fft
+import sigpy as sp
+import numpy as np
 
 def ifft(x):
     """
@@ -99,6 +101,21 @@ def get_mvue_torch(y, s_maps):
     estimated_mvue = torch.sum(ifft(y) * torch.conj(s_maps), axis=1) / torch.sqrt(torch.sum(torch.square(torch.abs(s_maps)), axis=1))
     
     return complex_to_real(estimated_mvue)
+
+def get_mvue_numpy(y, s_maps):
+    """
+    Given multi-coil measurements and coil sensitivity maps, return the MVUE.
+    
+    Args:
+        y (np.ndarray): Undersampled multi-coil measurements PFSx. [N, C, H, W] complex numpy array.
+        s_maps (np.ndarray): Coil sensitivity maps S. [N, C, H, W] complex numpy array.
+    
+    Returns:
+        np.ndarray: The estimated MVUE. [N, H, W] complex.
+    """
+    estimated_mvue = np.sum(sp.ifft(y, axes=(-1, -2)) * np.conj(s_maps), axis=-3) / np.sqrt(np.sum(np.square(np.abs(s_maps)), axis=-3))
+    
+    return estimated_mvue
 
 def get_min_max(x):
     """
