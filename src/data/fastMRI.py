@@ -15,7 +15,7 @@ class BrainMultiCoil(Dataset):
     def __init__(self, 
                  input_dir, 
                  maps_dir,
-                 pattern, 
+                 file_pattern, 
                  ignore_slice_list=None,
                  image_size=384, 
                  num_slices_path=None, 
@@ -31,7 +31,7 @@ class BrainMultiCoil(Dataset):
         Args:
             input_dir (str or path): Path to multi-coil k-space data as .h5 files.
             maps_dir (str or path): Path to coil sensitivity maps.
-            pattern (str): Pattern to match files in input_dir. E.G. '*T2*.h5'
+            file_pattern (str): Pattern to match files in input_dir. E.G. '*T2*.h5'
             ignore_slice_list (list, optional): List of file names to ignore. Defaults to None.
             image_size (int, optional): Crop size. Defaults to 384.
             num_slices_path (str or path, optional): Numpy file containing the number of slices in each volume. 
@@ -60,7 +60,7 @@ class BrainMultiCoil(Dataset):
         self.remove_end = remove_end
         self.cache_data = cache_data
         
-        self.file_list = get_all_files(input_dir, pattern=pattern)
+        self.file_list = get_all_files(input_dir, pattern=file_pattern)
         if ignore_slice_list is not None:
             self.file_list = [f for f in self.file_list if os.path.basename(f) not in ignore_slice_list]
         
@@ -198,3 +198,31 @@ class BrainMultiCoil(Dataset):
 
         return sample, idx
 
+class KneesMultiCoil(BrainMultiCoil):
+    def __init__(self, 
+                 input_dir, 
+                 maps_dir,
+                 file_pattern, 
+                 ignore_slice_list=None,
+                 image_size=320, 
+                 num_slices_path=None, 
+                 load_slice_info=False, 
+                 save_slice_info=False, 
+                 kspace_pad=False,
+                 remove_start=10,
+                 remove_end=0,
+                 cache_data=False):
+        
+        super(KneesMultiCoil, self).__init__(input_dir=input_dir,
+                                             maps_dir=maps_dir,
+                                             file_pattern=file_pattern,
+                                             ignore_slice_list=ignore_slice_list,
+                                             image_size=image_size,
+                                             num_slices_path=num_slices_path,
+                                             load_slice_info=load_slice_info,
+                                             save_slice_info=save_slice_info,
+                                             kspace_pad=kspace_pad,
+                                             remove_start=remove_start,
+                                             remove_end=remove_end,
+                                             cache_data=cache_data)
+        
