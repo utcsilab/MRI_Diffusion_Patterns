@@ -170,7 +170,7 @@ def shape_mask_3d(length, flat_input, flat_input_idx, on_idx, off_idx):
     
     flat_output = torch.zeros((n, length**2), device=flat_input.device, dtype=flat_input.dtype)
     flat_output[:, flat_input_idx] = flat_input
-    flat_output[:, on_idx] = 1.
     flat_output[:, off_idx] = 0.
+    flat_output[:, on_idx] = 1.
     
     return flat_output.view(n, length, length)
