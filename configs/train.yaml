@@ -1,0 +1,13 @@
+defaults:
+  - data: T2_3T_brains
+  - pattern: 3D_DOGG
+  - recon: DPS_brains
+  - training: 3D_DOGG
+
+gpu: 0
+
+save_dir: '/csiNAS2/slow/sriram/MRI_refactor'
+
+seed: 2023
+
+exp_name: "Brain_DPS"

@@ -24,7 +24,8 @@ class BrainMultiCoil(Dataset):
                  kspace_pad=28,
                  remove_start=0,
                  remove_end=5,
-                 cache_data=False):
+                 cache_data=False,
+                 log=None):
         """
         FastMRI multicoil brain dataset
 
@@ -50,6 +51,7 @@ class BrainMultiCoil(Dataset):
                                         Defaults to 5.
             cache_data (bool, optional): Whether to cache samples in RAM as they are seen. 
                                          Defaults to False.
+            log (logging.Logger, optional): Logger for logging. Defaults to None.
         """
         # Attributes
         self.input_dir = input_dir
@@ -66,7 +68,7 @@ class BrainMultiCoil(Dataset):
         
         # Access meta-data of each scan to get number of slices
         if not load_slice_info:
-            print("Reading " + str(len(self.file_list)) + " Scans")
+            log.info("Reading " + str(len(self.file_list)) + " Scans")
             self.num_slices = np.zeros((len(self.file_list,)), dtype=int)
             for idx, file in tqdm(enumerate(self.file_list)):
                 input_file = os.path.join(self.input_dir, os.path.basename(file))
@@ -76,10 +78,10 @@ class BrainMultiCoil(Dataset):
             #Check if we want to save the slice info 
             # want to save the raw info before removing slices from start or end!            
             if save_slice_info:
-                print("Saving compiled scan information!\n")
+                log.info("Saving compiled scan information!")
                 np.save(num_slices_path, self.num_slices)
         else:
-            print("Loading available scan information\n")
+            log.info("Loading available scan information")
             self.num_slices = np.load(num_slices_path)
         
         self.num_slices = self.num_slices - (self.remove_start + self.remove_end)    
@@ -206,7 +208,8 @@ class KneesMultiCoil(BrainMultiCoil):
                  kspace_pad=False,
                  remove_start=10,
                  remove_end=0,
-                 cache_data=False):
+                 cache_data=False,
+                 log=None):
         
         super(KneesMultiCoil, self).__init__(input_dir=input_dir,
                                              maps_dir=maps_dir,
@@ -219,5 +222,6 @@ class KneesMultiCoil(BrainMultiCoil):
                                              kspace_pad=kspace_pad,
                                              remove_start=remove_start,
                                              remove_end=remove_end,
-                                             cache_data=cache_data)
+                                             cache_data=cache_data,
+                                             log=log)
         
