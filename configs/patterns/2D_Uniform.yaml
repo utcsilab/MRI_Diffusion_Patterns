@@ -1,0 +1,11 @@
+sample_pattern: 'Fixed2dPattern'
+
+num_acs_lines: 16
+
+orientation: 'vertical'
+
+R: 20
+
+#length: this is set from data
+
+#device: this is taken from setup

@@ -1,0 +1,9 @@
+steps: 100
+rho: 7.0
+S_churn: 40.0
+S_min: 0.0
+S_max: .inf
+S_noise: 1.
+
+sigma_min: 0.002
+sigma_max: 80.0

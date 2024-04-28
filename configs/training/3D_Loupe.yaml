@@ -1,0 +1,11 @@
+num_iters: 200
+
+optimizer: 'adam'
+
+lr: 1e-3
+
+val_every: 100000 #Don't validate
+
+checkpoint_every: 20 #save checkpoints every n epochs
+
+loss_type: "l2"

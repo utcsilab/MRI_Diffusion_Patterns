@@ -1,0 +1,15 @@
+net_path: "/home/sravula/meta_exp/network-snapshot-008040.pkl"
+
+hard_consistent_output: false
+
+alg_type: "dps"
+
+#default sampling parameters from EDM
+defaults:
+  - edm_defaults
+
+S_churn: 0.0
+
+kwargs:
+  likelihood_step_size: 10.0
+  normalize_grad: true

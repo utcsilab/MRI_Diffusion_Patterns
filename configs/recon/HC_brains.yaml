@@ -1,0 +1,13 @@
+net_path: "/home/sravula/meta_exp/network-snapshot-008040.pkl"
+
+hard_consistent_output: false
+
+alg_type: "repaint"
+
+#default sampling parameters from EDM
+defaults:
+  - edm_defaults
+
+sigma_max: 1.0
+
+kwargs: {}
