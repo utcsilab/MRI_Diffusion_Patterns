@@ -18,7 +18,7 @@ def get_all_files(folder, pattern='*'):
     files = [x for x in glob.iglob(os.path.join(folder, pattern))]
     return sorted(files)
 
-def split_dataset(train_set, test_set, num_train, num_val, num_test, seed):
+def split_dataset(train_set, test_set, num_train, num_val, num_test, seed, log):
     """
     Split a given dataset into train, val, and test sets.
     
@@ -29,6 +29,7 @@ def split_dataset(train_set, test_set, num_train, num_val, num_test, seed):
         num_val: (int) Number of validation samples (from training set)
         num_test: (int) Number of testing samples.
         seed: (int) Random seed for reproducibility.
+        log (logging.Logger): Logger for logging messages.
     
     Returns:
         out_dict (dict): Dictionary containing the train, val, and test datasets.
@@ -36,8 +37,8 @@ def split_dataset(train_set, test_set, num_train, num_val, num_test, seed):
     tr_indices = list(range(len(train_set)))
     te_indices = list(range(len(test_set)))
 
-    print("Train Dataset Size: ", len(train_set))
-    print("Test Dataset Size: ", len(test_set))
+    log.info(f"Train Dataset Size: {len(train_set)}")
+    log.info(f"Test Dataset Size: {len(test_set)}")
 
     random_state = np.random.get_state()
     np.random.seed(seed)

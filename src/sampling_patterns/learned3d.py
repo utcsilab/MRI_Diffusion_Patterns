@@ -54,6 +54,15 @@ class Learned3d:
                                          normalize=True, 
                                          norm_mean=self.sparsity_level).to(device=device, dtype=torch.float32)
         self.weights.requires_grad_()
+    
+    def parameters(self):
+        """
+        Returns the parameters of the pattern.
+        
+        Returns:
+            List[Dict]: List of dictionaries containing the parameters.
+        """
+        return [{'params': self.weights}]
 
     def sample_mask(self, n=1):
         """
@@ -171,10 +180,10 @@ class Learned3d:
         weights = torch.empty(len(keep_inds),
                               dtype=self.weights.dtype,
                               layout=self.weights.layout,
-                              device=self.weights.device,
-                              requires_grad=True)
+                              device=self.weights.device)
         weights.data = self.weights[keep_inds].data
         self.weights = weights
+        self.weights.requires_grad_() #Trying to manually set here to ensure it's zerod out
         
         finished_flag = True if self.sparsity_level <= 0 else False
         return finished_flag

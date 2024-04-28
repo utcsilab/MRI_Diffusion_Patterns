@@ -4,10 +4,15 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import logging
 from omegaconf import DictConfig, OmegaConf
 import hydra
+import numpy as np
+
 import torch
+from torch.utils.data import DataLoader
 
 from src.utils.experiment_utils import set_all_seeds
 from src.sampling_patterns.learned3d import Learned3d
+
+from src.data.data_utils import split_dataset
 from src.data.fastMRI import BrainMultiCoil, KneesMultiCoil
 
 log = logging.getLogger(__name__)
@@ -77,5 +82,48 @@ def train(cfg: DictConfig) -> None:
                                   cache_data=cfg.data.cache_data,
                                   log=log)
 
+    split_dict = split_dataset(train_set=train_dataset,
+                               test_set=test_dataset,
+                               num_train=cfg.data.num_train,
+                               num_val=cfg.data.num_val,
+                               num_test=cfg.data.num_test,
+                               seed=cfg.seed,
+                               log=log)
+
+    train_loader = DataLoader(split_dict['train'], 
+                              batch_size=cfg.data.train_batch_size,
+                              shuffle=True,
+                              num_workers=16,
+                              drop_last=True)
+    val_loader = DataLoader(split_dict['val'],
+                            batch_size=cfg.data.val_batch_size,
+                            shuffle=False,
+                            num_workers=16,
+                            drop_last=False)
+    test_loader = DataLoader(split_dict['test'],
+                             batch_size=cfg.data.test_batch_size,
+                             shuffle=False,
+                             num_workers=16,
+                             drop_last=False)
+    
+    # Check and set up num_iters if needed
+    # NOTE right now this only works for 3D sampling patterns
+    if cfg.training.num_iters == -1:
+        updates_per_epoch = cfg.data.num_train / cfg.data.train_batch_size
+        cfg.training.num_iters = int(np.ceil(((cfg.data.image_size**2) / 
+                                    cfg.pattern.R - cfg.pattern.num_acs_lines**2) / updates_per_epoch))
+        
+        log.info(f"Setting epochs to {cfg.training.num_iters}")
+        
+    # Check if we need to initialise an optimizer
+    if cfg.training.optimizer == "adam":
+        opt = torch.optim.Adam(sampling_pattern.parameters(), lr=cfg.training.lr)
+    elif cfg.training.optimizer == "greedy_topk":
+        pass
+    else:
+        raise NotImplementedError(f"Optimizer {cfg.training.optimizer} not implemented.")
+    
+    
+    
 if __name__ == "__main__":
     train()
