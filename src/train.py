@@ -176,7 +176,5 @@ def train(cfg: DictConfig) -> None:
     acceleration = (torch.numel(P) / torch.sum(P)).item()
     log.info(f"Initial acceleration: {acceleration}")
     
-    
-    
 if __name__ == "__main__":
     train()

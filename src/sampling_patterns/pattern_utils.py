@@ -61,7 +61,7 @@ def bernouli_gumbel_sample(probs, tau):
     prob_01 = torch.stack((1. - probs, probs), dim=0) #[2, (dims)]
 
     #pytorch function requires un-normalized log-probabilities
-    gumbel_sample = F.gumbel_softmax(torch.log(prob_01), tau=tau, hard=True)[1] #[(dims)]
+    gumbel_sample = F.gumbel_softmax(torch.log(prob_01), tau=tau, hard=True, dim=0)[1] #[(dims)]
 
     return gumbel_sample
 
