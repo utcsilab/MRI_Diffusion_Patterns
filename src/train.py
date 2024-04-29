@@ -10,7 +10,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch.utils.tensorboard as tb
 
-from src.utils.experiment_utils import set_all_seeds, make_dirs
+from src.utils.experiment_utils import set_all_seeds, make_dirs, save_images
 from src.sampling_patterns.learned3d import Learned3d
 from src.recon_algorithms.diffusion_utils import load_net
 from src.recon_algorithms.diffusion import DiffusionMRIReconstruction
@@ -123,7 +123,7 @@ def train(cfg: DictConfig) -> None:
     if cfg.training.optimizer == "adam":
         opt = torch.optim.Adam(sampling_pattern.parameters(), lr=cfg.training.lr)
     elif cfg.training.optimizer == "greedy_topk":
-        pass
+        opt = None
     else:
         raise NotImplementedError(f"Optimizer {cfg.training.optimizer} not implemented.")
     
@@ -162,6 +162,21 @@ def train(cfg: DictConfig) -> None:
     tb_logger = tb.SummaryWriter(log_dir=os.path.join(log_dir, "tensorboard"))
     
     epoch = 0
+    
+    # (7) Save a snap of the initial sampling patterns before any training
+    P = sampling_pattern.sample_mask(n=1).detach().cpu() #[1,1,H,W]
+    P_prob = sampling_pattern.probabilistic_mask().detach().cpu() #[1,1,H,W]
+    
+    pattern_path = os.path.join(log_dir, "images", "learned_masks")
+    make_dirs(os.path.join(log_dir, "images"), ["learned_masks"])
+    
+    save_images(P, ["Sample_00"], pattern_path)
+    save_images(P_prob, ["Prob_00"], pattern_path)
+    
+    acceleration = (torch.numel(P) / torch.sum(P)).item()
+    log.info(f"Initial acceleration: {acceleration}")
+    
+    
     
 if __name__ == "__main__":
     train()
