@@ -6,6 +6,9 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 import numpy as np
 
+from tqdm import trange
+from tqdm.contrib.logging import logging_redirect_tqdm
+
 import torch
 from torch.utils.data import DataLoader
 import torch.utils.tensorboard as tb
@@ -175,6 +178,39 @@ def train(cfg: DictConfig) -> None:
     
     acceleration = (torch.numel(P) / torch.sum(P)).item()
     log.info(f"Initial acceleration: {acceleration}")
+    
+    ##########################################
+    ############## TRAINING LOOP #############
+    ##########################################
+    finished_flag = False
+    
+    with logging_redirect_tqdm():
+        for iter in trange(cfg.training.num_iters, desc="Training", unit="epoch"):
+            # (0) Checkpoint
+            if iter % cfg.training.checkpoint_every == 0:
+                log.info("Checkpoint") #checkpoint()
+            
+            # (1) Train
+            #finished_flag = train_epoch()
+            #metrics.add_metrics_to_tb(tb_logger, epoch, "train")
+            
+            # (2) Validate
+            if (iter + 1) % cfg.training.val_every == 0:
+                log.info("Validation") #val_epoch()
+                #metrics.add_metrics_to_tb(tb_logger, epoch, "val")
+            
+            #epoch +=1 #NOTE can we get rid of the epoch variable altogether?
+            
+            #Check if complete
+            #if finished_flag:
+            #    break
+    
+    #(3) Test
+    #test_epoch()
+    #metrics.add_metrics_to_tb(tb_logger, epoch, "test")
+    
+    log.info("Checkpoint") #checkpoint()
+            
     
 if __name__ == "__main__":
     train()
