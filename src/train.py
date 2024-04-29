@@ -8,12 +8,15 @@ import numpy as np
 
 import torch
 from torch.utils.data import DataLoader
+import torch.utils.tensorboard as tb
 
-from src.utils.experiment_utils import set_all_seeds
+from src.utils.experiment_utils import set_all_seeds, make_dirs
 from src.sampling_patterns.learned3d import Learned3d
-
+from src.recon_algorithms.diffusion_utils import load_net
+from src.recon_algorithms.diffusion import DiffusionMRIReconstruction
 from src.data.data_utils import split_dataset
 from src.data.fastMRI import BrainMultiCoil, KneesMultiCoil
+from src.utils.metric_utils import Metrics
 
 log = logging.getLogger(__name__)
 
@@ -123,7 +126,41 @@ def train(cfg: DictConfig) -> None:
     else:
         raise NotImplementedError(f"Optimizer {cfg.training.optimizer} not implemented.")
     
+    #TODO make a way to load a pattern from a .pt file
     
+    epoch = 0
+    
+    # Initialise the network and recon
+    edm_path = os.path.join(os.path.dirname(__file__), "recon_algorithms", "edm")
+    log.info(f"EDM path: {edm_path}")
+    sys.path.append(edm_path)
+    
+    net = load_net(cfg.recon.net_path, device=device)
+    
+    recon_alg = DiffusionMRIReconstruction(net=net,
+                                           hard_consistent_output=cfg.recon.hard_consistent_output,
+                                           alg_type=cfg.recon.alg_type,
+                                           steps=cfg.recon.steps,
+                                           rho=cfg.recon.rho,
+                                           S_churn=cfg.recon.S_churn,
+                                           S_min=cfg.recon.S_min,
+                                           S_max=cfg.recon.S_max,
+                                           S_noise=cfg.recon.S_noise,
+                                           sigma_min=cfg.recon.sigma_min,
+                                           sigma_max=cfg.recon.sigma_max,
+                                           **cfg.recon.kwargs)
+    
+    # Logging and metrics
+    metrics = Metrics()
+    
+    log_dir = os.path.join(cfg.save_dir, cfg.exp_name)
+    log.info(f"Log directory: {log_dir}")
+    make_dirs(log_dir, ["images", "tensorboard"])
+    
+    with open(os.path.join(log_dir, "config.yaml"), "w") as f:
+        OmegaConf.save(cfg, f)
+        
+    tb_logger = tb.SummaryWriter(log_dir=os.path.join(log_dir, "tensorboard"))
     
 if __name__ == "__main__":
     train()

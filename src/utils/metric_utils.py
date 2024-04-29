@@ -76,7 +76,7 @@ class Metrics:
     A class for storing and aggregating metrics during a run.
     Metrics are stored as numpy arrays.
     """
-    def __init__(self, hparams):
+    def __init__(self):
         #dicts for olding raw, image-by-image stats for each iteration.
         #e.g. self.train_metrics['iter_0']['psnr'] = [0.9, 0.1, 0.3] means that at train iteration 0, the images had psnrs of 0.9, 0.1, 0.3
         self.train_metrics = {}
@@ -88,8 +88,6 @@ class Metrics:
         self.train_metrics_aggregate = {}
         self.val_metrics_aggregate = {}
         self.test_metrics_aggregate = {}
-
-        self.hparams = hparams
     
     def resume(self, checkpoint):
         self.train_metrics = checkpoint['train_metrics']
