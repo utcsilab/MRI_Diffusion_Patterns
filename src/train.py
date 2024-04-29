@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(version_base=None, config_path="../configs", config_name="train")
 def train(cfg: DictConfig) -> None:
+    # (0) Set up
     print(OmegaConf.to_yaml(cfg))
     
     log.info("Setting all seeds")
@@ -30,7 +31,7 @@ def train(cfg: DictConfig) -> None:
     
     device = torch.device(f"cuda:{cfg.gpu}" if torch.cuda.is_available() else "cpu")
     
-    # Setup Sampling pattern
+    # (1) Setup Sampling pattern
     if cfg.pattern.sample_pattern == 'Learned3d':
         pattern_class = Learned3d
     else:
@@ -38,16 +39,16 @@ def train(cfg: DictConfig) -> None:
     
     log.info("Initialising Sampling Pattern")
     
-    sampling_pattern = Learned3d(num_acs_lines=cfg.pattern.num_acs_lines,
-                                 R=cfg.pattern.R,
-                                 length=cfg.data.image_size,
-                                 device=device,
-                                 cut_corners=cfg.pattern.cut_corners,
-                                 init_dist=cfg.pattern.init_dist,
-                                 sampler=cfg.pattern.sampler,
-                                 tau=cfg.pattern.tau)
+    sampling_pattern = pattern_class(num_acs_lines=cfg.pattern.num_acs_lines,
+                                     R=cfg.pattern.R,
+                                     length=cfg.data.image_size,
+                                     device=device,
+                                     cut_corners=cfg.pattern.cut_corners,
+                                     init_dist=cfg.pattern.init_dist,
+                                     sampler=cfg.pattern.sampler,
+                                     tau=cfg.pattern.tau)
     
-    # Setup datasets
+    # (2) Setup datasets
     if cfg.data.dataset == "BrainMultiCoil":
         dataset_class = BrainMultiCoil
     elif cfg.data.dataset == "KneesMultiCoil":
@@ -109,7 +110,7 @@ def train(cfg: DictConfig) -> None:
                              num_workers=16,
                              drop_last=False)
     
-    # Check and set up num_iters if needed
+    # (3) Check and set up num_iters if needed
     # NOTE right now this only works for 3D sampling patterns
     if cfg.training.num_iters == -1:
         updates_per_epoch = cfg.data.num_train / cfg.data.train_batch_size
@@ -118,7 +119,7 @@ def train(cfg: DictConfig) -> None:
         
         log.info(f"Setting epochs to {cfg.training.num_iters}")
         
-    # Check if we need to initialise an optimizer
+    # (4) Check if we need to initialise an optimizer
     if cfg.training.optimizer == "adam":
         opt = torch.optim.Adam(sampling_pattern.parameters(), lr=cfg.training.lr)
     elif cfg.training.optimizer == "greedy_topk":
@@ -128,9 +129,7 @@ def train(cfg: DictConfig) -> None:
     
     #TODO make a way to load a pattern from a .pt file
     
-    epoch = 0
-    
-    # Initialise the network and recon
+    # (5) Initialise the network and recon
     edm_path = os.path.join(os.path.dirname(__file__), "recon_algorithms", "edm")
     log.info(f"EDM path: {edm_path}")
     sys.path.append(edm_path)
@@ -150,7 +149,7 @@ def train(cfg: DictConfig) -> None:
                                            sigma_max=cfg.recon.sigma_max,
                                            **cfg.recon.kwargs)
     
-    # Logging and metrics
+    # (6) Logging and metrics
     metrics = Metrics()
     
     log_dir = os.path.join(cfg.save_dir, cfg.exp_name)
@@ -161,6 +160,8 @@ def train(cfg: DictConfig) -> None:
         OmegaConf.save(cfg, f)
         
     tb_logger = tb.SummaryWriter(log_dir=os.path.join(log_dir, "tensorboard"))
+    
+    epoch = 0
     
 if __name__ == "__main__":
     train()
