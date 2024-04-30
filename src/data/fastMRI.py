@@ -3,6 +3,8 @@ import h5py
 import os
 from tqdm import tqdm
 import sigpy as sp
+import copy
+from multiprocessing import Manager
 
 import torch
 from torch.utils.data import Dataset
@@ -88,7 +90,9 @@ class BrainMultiCoil(Dataset):
         self.slice_mapper = np.cumsum(self.num_slices) - 1 # Counts from '0'
         
         if self.cache_data:
-            self.dataset_cache = {}
+            manager = Manager()
+            self.dataset_cache = manager.dict()
+            # self.dataset_cache = {}
     
     def __len__(self):
         total_slices = int(np.sum(self.num_slices))
@@ -114,8 +118,8 @@ class BrainMultiCoil(Dataset):
             idx = idx.tolist()
             
         #see if the sample is already cached
-        if self.cache_data and (str(idx) in self.dataset_cache):
-            return self.dataset_cache[str(idx)], idx
+        if self.cache_data and (idx in self.dataset_cache):
+            return self.dataset_cache[idx], idx
 
         # Get scan and slice index
         # First scan for which index is in the valid cumulative range
@@ -191,7 +195,7 @@ class BrainMultiCoil(Dataset):
                   'slice_idx': slice_idx}
         
         if self.cache_data:
-            self.dataset_cache[str(idx)] = sample
+            self.dataset_cache[idx] = copy.deepcopy(sample)
 
         return sample, idx
 

@@ -38,15 +38,16 @@ class Learned3d:
         acs_idx = np.arange((length - num_acs_lines) // 2, (length + num_acs_lines) // 2)
         flat_n_inds = np.arange(length**2).reshape(length, length)
         
-        self.acs_idx = flat_n_inds[acs_idx[:, None], acs_idx].flatten() #fancy indexing grabs a square from center
+        self.always_on_idx = flat_n_inds[acs_idx[:, None], acs_idx].flatten() #fancy indexing grabs a square from center
         
         #(2) Create the list of indexes to always keep off and on
         self.always_off_idx = np.empty(0, dtype=np.int64)
         if cut_corners:
             _, _, radius_grid = get_xy_radius_grid(length)
             self.always_off_idx = flat_n_inds[radius_grid > 1].flatten()
-        
-        self.always_on_idx = np.empty(0, dtype=np.int64)
+            
+        self.insert_mask_idx = np.array([i for i in range(self.length**2) 
+                                        if (i not in self.always_on_idx) and (i not in self.always_off_idx)])
                 
         #(3) Initialize the weights
         self.weights = get_random_logits(length=self.num_weights, 
@@ -84,7 +85,7 @@ class Learned3d:
         sampled_mask = shape_mask_3d(length=self.length, 
                                      flat_input=flat_sample, 
                                      flat_input_idx=self.insert_mask_idx, 
-                                     on_idx=np.union1d(self.acs_idx, self.always_on_idx), 
+                                     on_idx=self.always_on_idx, 
                                      off_idx=self.always_off_idx) #[n, length, length]
         
         return sampled_mask.unsqueeze(1) #[n, 1, length, length]
@@ -102,22 +103,27 @@ class Learned3d:
         prob_mask = shape_mask_3d(length=self.length, 
                                   flat_input=normed_probs, 
                                   flat_input_idx=self.insert_mask_idx, 
-                                  on_idx=np.union1d(self.acs_idx, self.always_on_idx), 
+                                  on_idx=self.always_on_idx, 
                                   off_idx=self.always_off_idx) #[1, length, length]
         
         return prob_mask.unsqueeze(0) #[1, 1, length, length]
     
-    @property
-    def insert_mask_idx(self):
-        """
-        Returns the list of flattened 2d indexes to insert the flattened pattern weights.
+    # @property
+    # def insert_mask_idx(self):
+    #     """
+    #     Returns the list of flattened 2d indexes to insert the flattened pattern weights.
         
-        Returns:
-            np.ndarray: The indexes. [num_weights].
-        """
-        exclusion_list = np.union1d(np.union1d(self.acs_idx, self.always_on_idx), self.always_off_idx)
+    #     Returns:
+    #         np.ndarray: The indexes. [num_weights].
+    #     """
+    #     #Set up caching for faster future access
+    #     if (not hasattr(self, 'cache_insert_mask_idx')) or (self.on_len != len(self.always_on_idx)) or (self.off_len != len(self.always_off_idx)):
+    #         self.on_len = len(self.always_on_idx)
+    #         self.off_len = len(self.always_off_idx)
+    #         self.cache_insert_mask_idx = np.array([i for i in range(self.length**2) 
+    #                                                if (i not in self.always_on_idx) and (i not in self.always_off_idx)])
         
-        return np.array([i for i in range(self.length**2) if i not in exclusion_list])
+    #     return self.cache_insert_mask_idx
     
     @property
     def sparsity_level(self):
@@ -128,7 +134,7 @@ class Learned3d:
             float: The current desired sparsity level.
         """
         total_on = self.length**2 / self.R
-        already_on = len(np.union1d(self.acs_idx, self.always_on_idx))
+        already_on = len(self.always_on_idx)
         
         return (total_on - already_on) / self.num_weights
     
@@ -167,13 +173,17 @@ class Learned3d:
         # and (b) furthest from the already selected points
         top_k_inds = torch.topk(-self.weights.grad, k=k)[1].tolist() 
         selected_point_idx = get_furthest_point_3d(query_point_inds=self.insert_mask_idx[top_k_inds],
-                                                   key_point_inds=np.union1d(self.acs_idx, self.always_on_idx),
+                                                   key_point_inds=self.always_on_idx,
                                                    grid_x=self.grid_x,
                                                    grid_y=self.grid_y,
                                                    include_conjugate_keys=include_conjugates)
         top_k_inds = [top_k_inds[selected_point_idx]] 
         
         self.always_on_idx = np.append(self.always_on_idx, self.insert_mask_idx[top_k_inds])
+        
+        mask = np.ones(len(self.insert_mask_idx), dtype=bool)
+        mask[top_k_inds] = False
+        self.insert_mask_idx = self.insert_mask_idx[mask]
         
         #Remove the selected point from the weights and gradients
         keep_inds = [i for i in range(self.weights.numel()) if i not in top_k_inds]

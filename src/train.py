@@ -104,7 +104,8 @@ def train(cfg: DictConfig) -> None:
                               shuffle=True,
                               num_workers=4,
                               drop_last=True,
-                              persistent_workers=True)
+                              persistent_workers=True,
+                              pin_memory=True)
     val_loader = DataLoader(split_dict['val'],
                             batch_size=cfg.data.val_batch_size,
                             shuffle=False,
@@ -217,6 +218,9 @@ def train(cfg: DictConfig) -> None:
                     metrics_dict = {"meta_loss": np.array([train_loss.item()] * x.shape[0]),
                                     "sigma_t": sigma_t.squeeze().detach().cpu().numpy()}
                     metrics.add_external_metrics(metrics_dict, iter_num=epoch, iter_type="train")
+                
+                if finished_flag:
+                    break
             
             # (2) Validate
             if (epoch + 1) % cfg.training.val_every == 0:
