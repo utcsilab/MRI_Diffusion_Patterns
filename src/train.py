@@ -1,5 +1,6 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 import logging
 from omegaconf import DictConfig, OmegaConf
@@ -20,6 +21,7 @@ from src.recon_algorithms.diffusion import DiffusionMRIReconstruction
 from src.data.data_utils import split_dataset
 from src.data.fastMRI import BrainMultiCoil, KneesMultiCoil
 from src.utils.metric_utils import Metrics
+from src.utils.training_utils import make_noisy_sample, single_step_posterior_estimate, calculate_loss
 
 log = logging.getLogger(__name__)
 
@@ -100,7 +102,7 @@ def train(cfg: DictConfig) -> None:
     train_loader = DataLoader(split_dict['train'], 
                               batch_size=cfg.data.train_batch_size,
                               shuffle=True,
-                              num_workers=1,
+                              num_workers=4,
                               drop_last=True,
                               persistent_workers=True)
     val_loader = DataLoader(split_dict['val'],
@@ -165,8 +167,6 @@ def train(cfg: DictConfig) -> None:
         
     tb_logger = tb.SummaryWriter(log_dir=os.path.join(log_dir, "tensorboard"))
     
-    epoch = 0
-    
     # (7) Save a snap of the initial sampling patterns before any training
     P = sampling_pattern.sample_mask(n=1).detach().cpu() #[1,1,H,W]
     P_prob = sampling_pattern.probabilistic_mask().detach().cpu() #[1,1,H,W]
@@ -186,31 +186,56 @@ def train(cfg: DictConfig) -> None:
     finished_flag = False
     
     with logging_redirect_tqdm():
-        for iter in trange(cfg.training.num_iters, desc="Training", unit="epoch"):
+        for epoch in trange(cfg.training.num_iters, unit=" epochs"):
             # (0) Checkpoint
-            if iter % cfg.training.checkpoint_every == 0:
+            if epoch % cfg.training.checkpoint_every == 0:
                 pass #NOTE add checkpointing functionality
             
             # (1) Train
-            for i, (item, idx) in tqdm(enumerate(train_loader), desc="Training", unit="batch"):
-                pass #NOTE add training functionality
+            for i, (item, idx) in tqdm(enumerate(train_loader), desc="Training", unit=" batches"):
+                FSx, S, x = item['ksp'].to(device), item['s_maps'].to(device), item['gt_image'].to(device)
+                scan_idx, slice_idx = item['scan_idx'], item['slice_idx']
+                
+                P = sampling_pattern.sample_mask(n=x.shape[0])
+                
+                x_t, sigma_t = make_noisy_sample(x=x, sigma_t=None, normalize_input=True)
+                
+                x_hat = single_step_posterior_estimate(net=net, x_t=x_t, sigma_t=sigma_t, FSx=FSx, P=P, S=S, 
+                                                       likelihood_step_size=cfg.training.likelihood_step_size)
+                
+                train_loss = calculate_loss(x_hat=x_hat, x=x, loss_type=cfg.training.loss_type)
+                train_loss.backward()
+                
+                if cfg.training.optimizer == "adam":
+                    opt.step()
+                    opt.zero_grad()
+                elif cfg.training.optimizer == "greedy_topk":
+                    finished_flag = sampling_pattern.greedy_topk_step(k=cfg.training.k, 
+                                                                      include_conjugates=cfg.training.include_conjugates)
+                
+                with torch.no_grad():
+                    metrics_dict = {"meta_loss": np.array([train_loss.item()] * x.shape[0]),
+                                    "sigma_t": sigma_t.squeeze().detach().cpu().numpy()}
+                    metrics.add_external_metrics(metrics_dict, iter_num=epoch, iter_type="train")
             
             # (2) Validate
-            if (iter + 1) % cfg.training.val_every == 0:
-                for i, (item, idx) in tqdm(enumerate(val_loader), desc="Validation", unit="batch"):
+            if (epoch + 1) % cfg.training.val_every == 0:
+                for i, (item, idx) in tqdm(enumerate(val_loader), desc="Validation", unit=" batches"):
                     pass #NOTE add validation functionality
-            
-            #epoch +=1 #NOTE can we get rid of the epoch variable altogether?
             
             #Check if complete
             if finished_flag:
                break
     
         #(3) Test
-        for i, (item, idx) in tqdm(enumerate(val_loader), desc="Validation", unit="batch"):
+        for i, (item, idx) in tqdm(enumerate(test_loader), desc="Testing", unit=" batches"):
             pass #NOTE add testing functionality
     
-    #Final Checkpoint here
+    #NOTE add checkpointing functionality
+
+    train_loader.dataset.dataset.teardown()
+    val_loader.dataset.dataset.teardown()
+    test_loader.dataset.dataset.teardown()
             
 if __name__ == "__main__":
     train()
