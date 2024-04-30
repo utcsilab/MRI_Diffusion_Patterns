@@ -6,7 +6,7 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 import numpy as np
 
-from tqdm import trange
+from tqdm import trange, tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 import torch
@@ -100,17 +100,18 @@ def train(cfg: DictConfig) -> None:
     train_loader = DataLoader(split_dict['train'], 
                               batch_size=cfg.data.train_batch_size,
                               shuffle=True,
-                              num_workers=16,
-                              drop_last=True)
+                              num_workers=1,
+                              drop_last=True,
+                              persistent_workers=True)
     val_loader = DataLoader(split_dict['val'],
                             batch_size=cfg.data.val_batch_size,
                             shuffle=False,
-                            num_workers=16,
+                            num_workers=1,
                             drop_last=False)
     test_loader = DataLoader(split_dict['test'],
                              batch_size=cfg.data.test_batch_size,
                              shuffle=False,
-                             num_workers=16,
+                             num_workers=1,
                              drop_last=False)
     
     # (3) Check and set up num_iters if needed
@@ -188,29 +189,28 @@ def train(cfg: DictConfig) -> None:
         for iter in trange(cfg.training.num_iters, desc="Training", unit="epoch"):
             # (0) Checkpoint
             if iter % cfg.training.checkpoint_every == 0:
-                log.info("Checkpoint") #checkpoint()
+                pass #NOTE add checkpointing functionality
             
             # (1) Train
-            #finished_flag = train_epoch()
-            #metrics.add_metrics_to_tb(tb_logger, epoch, "train")
+            for i, (item, idx) in tqdm(enumerate(train_loader), desc="Training", unit="batch"):
+                pass #NOTE add training functionality
             
             # (2) Validate
             if (iter + 1) % cfg.training.val_every == 0:
-                log.info("Validation") #val_epoch()
-                #metrics.add_metrics_to_tb(tb_logger, epoch, "val")
+                for i, (item, idx) in tqdm(enumerate(val_loader), desc="Validation", unit="batch"):
+                    pass #NOTE add validation functionality
             
             #epoch +=1 #NOTE can we get rid of the epoch variable altogether?
             
             #Check if complete
-            #if finished_flag:
-            #    break
+            if finished_flag:
+               break
     
-    #(3) Test
-    #test_epoch()
-    #metrics.add_metrics_to_tb(tb_logger, epoch, "test")
+        #(3) Test
+        for i, (item, idx) in tqdm(enumerate(val_loader), desc="Validation", unit="batch"):
+            pass #NOTE add testing functionality
     
-    log.info("Checkpoint") #checkpoint()
+    #Final Checkpoint here
             
-    
 if __name__ == "__main__":
     train()
