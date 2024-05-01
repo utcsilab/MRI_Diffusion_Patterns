@@ -1,6 +1,0 @@
-- pattern.R=100
-- data.train_batch_size=1
-- training.checkpoint_every=1
-- gpu=3
-- training.k=10
-- training.include_conjugates=true

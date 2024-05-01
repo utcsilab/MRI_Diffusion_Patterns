@@ -256,7 +256,7 @@ def train(cfg: DictConfig) -> None:
                         x_resid_stretched_idx = [f"{idx}_resid_stretched" for idx in x_idx]
                         
                         norm_factor = np.percentile(torch.norm(x, dim=1).detach().cpu().numpy(), q=99, axis=(1, 2)) #[N]
-                        norm_factor = torch.from_numpy(norm_factor).to(device)
+                        norm_factor = torch.from_numpy(norm_factor).to(device).view(-1, 1, 1, 1)
                         
                         x_hat_vis = x_hat / norm_factor
                         x_vis = x / norm_factor

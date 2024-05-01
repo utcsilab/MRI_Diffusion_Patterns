@@ -112,16 +112,16 @@ hydra:
     hydra:
     - hydra.mode=RUN
     task:
-    - pattern.R=100
-    - data.train_batch_size=1
-    - training.checkpoint_every=1
+    - pattern.R=10
+    - data.train_batch_size=10
+    - training.checkpoint_every=10
     - gpu=3
-    - training.k=10
+    - training.k=100
     - training.include_conjugates=true
   job:
     name: train
     chdir: null
-    override_dirname: data.train_batch_size=1,gpu=3,pattern.R=100,training.checkpoint_every=1,training.include_conjugates=true,training.k=10
+    override_dirname: data.train_batch_size=10,gpu=3,pattern.R=10,training.checkpoint_every=10,training.include_conjugates=true,training.k=100
     id: ???
     num: ???
     config_name: train
@@ -146,7 +146,7 @@ hydra:
     - path: ''
       schema: structured
       provider: schema
-    output_dir: /home/sravula/MRI_Diffusion_Patterns/outputs/2024-05-01/17-36-06
+    output_dir: /home/sravula/MRI_Diffusion_Patterns/outputs/2024-05-01/18-10-44
     choices:
       training: 3D_DOGG
       recon: DPS_brains

@@ -18,13 +18,13 @@ data:
   num_train: 200
   num_val: 50
   num_test: 100
-  train_batch_size: 1
+  train_batch_size: 10
   val_batch_size: 5
   test_batch_size: 5
 pattern:
   sample_pattern: Learned3d
   num_acs_lines: 16
-  R: 100
+  R: 10
   cut_corners: true
   init_dist: uniform
   sampler: gumbel
@@ -47,10 +47,10 @@ recon:
 training:
   num_iters: -1
   optimizer: greedy_topk
-  k: 10
+  k: 100
   include_conjugates: true
   val_every: 100000
-  checkpoint_every: 1
+  checkpoint_every: 10
   loss_type: l2
   likelihood_step_size: 1.0
 gpu: 3
