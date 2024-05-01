@@ -32,6 +32,9 @@ def save_images(images, labels, save_prefix):
         labels (list): The labels of the images. Can be integers, strings, or torch.Tensors.
         save_prefix (str): The prefix of the path where the images will be saved. Should not include the filename.
     """
+    if not os.path.exists(save_prefix):
+        os.makedirs(save_prefix)
+    
     for image_num, image in zip(labels, images):
         if isinstance(image_num, torch.Tensor):
             save_image(image, os.path.join(save_prefix, str(image_num.item())+'.png'))

@@ -102,7 +102,7 @@ def train(cfg: DictConfig) -> None:
     train_loader = DataLoader(split_dict['train'], 
                               batch_size=cfg.data.train_batch_size,
                               shuffle=True,
-                              num_workers=4,
+                              num_workers=8,
                               drop_last=True,
                               persistent_workers=True,
                               pin_memory=True)
@@ -201,7 +201,7 @@ def train(cfg: DictConfig) -> None:
             for i, (item, idx) in tqdm(enumerate(train_loader), desc="Training", unit=" batch"):
                 # (a) grab variables and move to gpu
                 FSx, S, x = item['ksp'].to(device), item['s_maps'].to(device), item['gt_image'].to(device)
-                scan_idx, slice_idx = item['scan_idx'], item['slice_idx']
+                scan_idx, slice_idx = item['scan_idx'].tolist(), item['slice_idx'].tolist()
                 
                 # (b) grab pattern, make noisy sample, and estimate posterior mean
                 P = sampling_pattern.sample_mask(n=x.shape[0])
@@ -224,6 +224,7 @@ def train(cfg: DictConfig) -> None:
                 
                 # (d) logging metrics and saving images for the current batch
                 with torch.no_grad():
+                    # (i) metrics
                     resid = x_hat - x
                     gt_mse = torch.mean(torch.square(resid), dim=[1,2,3]) 
                     gt_mae = torch.mean(torch.abs(resid), dim=[1,2,3]) 
@@ -238,7 +239,40 @@ def train(cfg: DictConfig) -> None:
                     metrics.add_external_metrics(metrics_dict, iter_num=epoch, iter_type="train")
                     metrics.calc_iter_metrics(x_hat=x_hat, x=x, iter_num=epoch, iter_type="train")
                     
-                    
+                    # (ii) save images
+                    if (i == 0) and ((epoch % cfg.training.checkpoint_every == 0) or (epoch == cfg.training.num_iters - 1)):
+                        #Save sampling patterns
+                        P = sampling_pattern.sample_mask(n=1).detach().cpu() #[1,1,H,W]
+                        P_prob = sampling_pattern.probabilistic_mask().detach().cpu() #[1,1,H,W]
+                        
+                        pattern_path = os.path.join(log_dir, "images", "learned_masks")
+                        
+                        save_images(P, [f"Sample_{epoch}"], pattern_path)
+                        save_images(P_prob, [f"Prob_{epoch}"], pattern_path)
+                        
+                        #Save reconstructions at every iteration
+                        x_idx = [f"{scan_id}_{slice_id}" for scan_id, slice_id in zip(scan_idx, slice_idx)]
+                        x_resid_idx = [f"{idx}_resid" for idx in x_idx]
+                        x_resid_stretched_idx = [f"{idx}_resid_stretched" for idx in x_idx]
+                        
+                        norm_factor = np.percentile(torch.norm(x, dim=1).detach().cpu().numpy(), q=99, axis=(1, 2)) #[N]
+                        norm_factor = torch.from_numpy(norm_factor).to(device)
+                        
+                        x_hat_vis = x_hat / norm_factor
+                        x_vis = x / norm_factor
+                        x_resid = x_hat_vis - x_vis
+                        x_resid_stretched = 5 * x_resid
+                        
+                        recovered_path = os.path.join(log_dir, "images",  "train_recon", f"epoch_{epoch}")
+                        save_images(x_hat_vis, x_idx, recovered_path)
+                        save_images(x_resid, x_resid_idx, recovered_path)
+                        save_images(x_resid_stretched, x_resid_stretched_idx, recovered_path)
+                        
+                        #Save the ground truth images only once
+                        if epoch == 0:
+                            true_path = os.path.join(log_dir, "images",  "train")
+                            save_images(x_vis, x_idx, true_path)
+
                 # (e) check if we are done
                 if finished_flag:
                     log.info("Desired acceleration reached. Exiting training loop.")
@@ -254,11 +288,6 @@ def train(cfg: DictConfig) -> None:
             if (epoch + 1) % cfg.training.val_every == 0:
                 for i, (item, idx) in tqdm(enumerate(val_loader), desc="Validation", unit=" batch"):
                     pass #NOTE add validation functionality
-                
-                # # (f) log metrics for the entire epoch
-                # metrics.aggregate_iter_metrics(iter_num=epoch, iter_type="val")
-                # metrics.add_metrics_to_tb(tb_logger=tb_logger, step=epoch, iter_type="val")
-                # log.info(metrics.get_all_metrics(iter_num=epoch, iter_type="val"))
             
             #Check if complete
             if finished_flag:
@@ -268,11 +297,6 @@ def train(cfg: DictConfig) -> None:
         #(3) Test
         for i, (item, idx) in tqdm(enumerate(test_loader), desc="Testing", unit=" batch"):
             pass #NOTE add testing functionality
-        
-        # # (f) log metrics for the entire epoch
-        # metrics.aggregate_iter_metrics(iter_num=epoch, iter_type="test")
-        # metrics.add_metrics_to_tb(tb_logger=tb_logger, step=epoch, iter_type="test")
-        # log.info(metrics.get_all_metrics(iter_num=epoch, iter_type="test"))
     
         #NOTE add checkpointing functionality
         log.info("Saving final checkpoint...") 
@@ -281,8 +305,6 @@ def train(cfg: DictConfig) -> None:
         train_loader.dataset.dataset.teardown()
         val_loader.dataset.dataset.teardown()
         test_loader.dataset.dataset.teardown()
-        
-        torch.cuda.empty_cache()
             
 if __name__ == "__main__":
-    train()
+    sys.exit(train())
