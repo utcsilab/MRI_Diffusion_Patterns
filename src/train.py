@@ -109,13 +109,17 @@ def train(cfg: DictConfig) -> None:
     val_loader = DataLoader(split_dict['val'],
                             batch_size=cfg.data.val_batch_size,
                             shuffle=False,
-                            num_workers=1,
-                            drop_last=False)
+                            num_workers=4,
+                            drop_last=False,
+                            persistent_workers=False,
+                            pin_memory=True)
     test_loader = DataLoader(split_dict['test'],
                              batch_size=cfg.data.test_batch_size,
                              shuffle=False,
-                             num_workers=1,
-                             drop_last=False)
+                             num_workers=4,
+                             drop_last=False,
+                             persistent_workers=False,
+                             pin_memory=True)
     
     # (3) Check and set up num_iters if needed
     # NOTE right now this only works for 3D sampling patterns
@@ -190,13 +194,16 @@ def train(cfg: DictConfig) -> None:
         for epoch in trange(cfg.training.num_iters, unit=" epoch"):
             # (0) Checkpoint
             if epoch % cfg.training.checkpoint_every == 0:
-                pass #NOTE add checkpointing functionality
+                #NOTE add checkpointing functionality
+                log.info("Saving checkpoint...") 
             
             # (1) Train
             for i, (item, idx) in tqdm(enumerate(train_loader), desc="Training", unit=" batch"):
+                # (a) grab variables and move to gpu
                 FSx, S, x = item['ksp'].to(device), item['s_maps'].to(device), item['gt_image'].to(device)
                 scan_idx, slice_idx = item['scan_idx'], item['slice_idx']
                 
+                # (b) grab pattern, make noisy sample, and estimate posterior mean
                 P = sampling_pattern.sample_mask(n=x.shape[0])
                 
                 x_t, sigma_t = make_noisy_sample(x=x, sigma_t=None, normalize_input=True)
@@ -207,6 +214,7 @@ def train(cfg: DictConfig) -> None:
                 train_loss = calculate_loss(x_hat=x_hat, x=x, loss_type=cfg.training.loss_type)
                 train_loss.backward()
                 
+                # (c) update pattern
                 if cfg.training.optimizer == "adam":
                     opt.step()
                     opt.zero_grad()
@@ -214,6 +222,7 @@ def train(cfg: DictConfig) -> None:
                     finished_flag = sampling_pattern.greedy_topk_step(k=cfg.training.k, 
                                                                       include_conjugates=cfg.training.include_conjugates)
                 
+                # (d) logging metrics and saving images for the current batch
                 with torch.no_grad():
                     resid = x_hat - x
                     gt_mse = torch.mean(torch.square(resid), dim=[1,2,3]) 
@@ -229,10 +238,13 @@ def train(cfg: DictConfig) -> None:
                     metrics.add_external_metrics(metrics_dict, iter_num=epoch, iter_type="train")
                     metrics.calc_iter_metrics(x_hat=x_hat, x=x, iter_num=epoch, iter_type="train")
                     
+                    
+                # (e) check if we are done
                 if finished_flag:
                     log.info("Desired acceleration reached. Exiting training loop.")
                     break
             
+            # (f) log metrics for the entire epoch
             metrics.aggregate_iter_metrics(iter_num=epoch, iter_type="train")
             metrics.add_metrics_to_tb(tb_logger=tb_logger, step=epoch, iter_type="train")
             if (epoch % cfg.training.checkpoint_every == 0) or (epoch == cfg.training.num_iters - 1):
@@ -242,20 +254,35 @@ def train(cfg: DictConfig) -> None:
             if (epoch + 1) % cfg.training.val_every == 0:
                 for i, (item, idx) in tqdm(enumerate(val_loader), desc="Validation", unit=" batch"):
                     pass #NOTE add validation functionality
+                
+                # # (f) log metrics for the entire epoch
+                # metrics.aggregate_iter_metrics(iter_num=epoch, iter_type="val")
+                # metrics.add_metrics_to_tb(tb_logger=tb_logger, step=epoch, iter_type="val")
+                # log.info(metrics.get_all_metrics(iter_num=epoch, iter_type="val"))
             
             #Check if complete
             if finished_flag:
-               break
+                log.info("Finishing logging and starting testing (if desired)")
+                break
     
         #(3) Test
         for i, (item, idx) in tqdm(enumerate(test_loader), desc="Testing", unit=" batch"):
             pass #NOTE add testing functionality
+        
+        # # (f) log metrics for the entire epoch
+        # metrics.aggregate_iter_metrics(iter_num=epoch, iter_type="test")
+        # metrics.add_metrics_to_tb(tb_logger=tb_logger, step=epoch, iter_type="test")
+        # log.info(metrics.get_all_metrics(iter_num=epoch, iter_type="test"))
     
-    #NOTE add checkpointing functionality
+        #NOTE add checkpointing functionality
+        log.info("Saving final checkpoint...") 
 
-    train_loader.dataset.dataset.teardown()
-    val_loader.dataset.dataset.teardown()
-    test_loader.dataset.dataset.teardown()
+        #(4) clean up 
+        train_loader.dataset.dataset.teardown()
+        val_loader.dataset.dataset.teardown()
+        test_loader.dataset.dataset.teardown()
+        
+        torch.cuda.empty_cache()
             
 if __name__ == "__main__":
     train()

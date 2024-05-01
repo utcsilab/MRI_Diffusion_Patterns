@@ -103,7 +103,7 @@ class BrainMultiCoil(Dataset):
         """
         Deletes the cached tensors if they exist
         """
-        if not self.cache_data:
+        if (not self.cache_data) or (not hasattr(self, "dataset_cache")):
             return
         
         for k in list(self.dataset_cache.keys()):
