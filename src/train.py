@@ -187,13 +187,13 @@ def train(cfg: DictConfig) -> None:
     finished_flag = False
     
     with logging_redirect_tqdm():
-        for epoch in trange(cfg.training.num_iters, unit=" epochs"):
+        for epoch in trange(cfg.training.num_iters, unit=" epoch"):
             # (0) Checkpoint
             if epoch % cfg.training.checkpoint_every == 0:
                 pass #NOTE add checkpointing functionality
             
             # (1) Train
-            for i, (item, idx) in tqdm(enumerate(train_loader), desc="Training", unit=" batches"):
+            for i, (item, idx) in tqdm(enumerate(train_loader), desc="Training", unit=" batch"):
                 FSx, S, x = item['ksp'].to(device), item['s_maps'].to(device), item['gt_image'].to(device)
                 scan_idx, slice_idx = item['scan_idx'], item['slice_idx']
                 
@@ -215,16 +215,32 @@ def train(cfg: DictConfig) -> None:
                                                                       include_conjugates=cfg.training.include_conjugates)
                 
                 with torch.no_grad():
-                    metrics_dict = {"meta_loss": np.array([train_loss.item()] * x.shape[0]),
-                                    "sigma_t": sigma_t.squeeze().detach().cpu().numpy()}
+                    resid = x_hat - x
+                    gt_mse = torch.mean(torch.square(resid), dim=[1,2,3]) 
+                    gt_mae = torch.mean(torch.abs(resid), dim=[1,2,3]) 
+                    
+                    R_sample = (P.shape[2] * P.shape[3]) / torch.sum(P, dim=[1, 2, 3])
+                    
+                    metrics_dict = {"train_loss": np.array([train_loss.item()] * x.shape[0]),
+                                    "sigma_t": sigma_t.squeeze().detach().cpu().numpy(),
+                                    "gt_mse": gt_mse.squeeze().detach().cpu().numpy(),
+                                    "gt_mae": gt_mae.squeeze().detach().cpu().numpy(),
+                                    "R_sample": R_sample.squeeze().detach().cpu().numpy()}
                     metrics.add_external_metrics(metrics_dict, iter_num=epoch, iter_type="train")
-                
+                    metrics.calc_iter_metrics(x_hat=x_hat, x=x, iter_num=epoch, iter_type="train")
+                    
                 if finished_flag:
+                    log.info("Desired acceleration reached. Exiting training loop.")
                     break
+            
+            metrics.aggregate_iter_metrics(iter_num=epoch, iter_type="train")
+            metrics.add_metrics_to_tb(tb_logger=tb_logger, step=epoch, iter_type="train")
+            if (epoch % cfg.training.checkpoint_every == 0) or (epoch == cfg.training.num_iters - 1):
+                log.info(metrics.get_all_metrics(iter_num=epoch, iter_type="train"))
             
             # (2) Validate
             if (epoch + 1) % cfg.training.val_every == 0:
-                for i, (item, idx) in tqdm(enumerate(val_loader), desc="Validation", unit=" batches"):
+                for i, (item, idx) in tqdm(enumerate(val_loader), desc="Validation", unit=" batch"):
                     pass #NOTE add validation functionality
             
             #Check if complete
@@ -232,7 +248,7 @@ def train(cfg: DictConfig) -> None:
                break
     
         #(3) Test
-        for i, (item, idx) in tqdm(enumerate(test_loader), desc="Testing", unit=" batches"):
+        for i, (item, idx) in tqdm(enumerate(test_loader), desc="Testing", unit=" batch"):
             pass #NOTE add testing functionality
     
     #NOTE add checkpointing functionality
