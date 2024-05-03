@@ -5,6 +5,8 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 import logging
 from omegaconf import DictConfig, OmegaConf
 import hydra
+import json
+
 import numpy as np
 
 from tqdm import trange, tqdm
@@ -22,6 +24,7 @@ from src.data.data_utils import split_dataset
 from src.data.fastMRI import BrainMultiCoil, KneesMultiCoil
 from src.utils.metric_utils import Metrics
 from src.utils.training_utils import make_noisy_sample, single_step_posterior_estimate, calculate_loss
+from src.utils.helpers import get_mvue_torch, get_min_max, normalize
 
 log = logging.getLogger(__name__)
 
@@ -102,21 +105,21 @@ def train(cfg: DictConfig) -> None:
     train_loader = DataLoader(split_dict['train'], 
                               batch_size=cfg.data.train_batch_size,
                               shuffle=True,
-                              num_workers=8,
+                              num_workers=1,
                               drop_last=True,
                               persistent_workers=True,
                               pin_memory=True)
     val_loader = DataLoader(split_dict['val'],
                             batch_size=cfg.data.val_batch_size,
                             shuffle=False,
-                            num_workers=4,
+                            num_workers=1,
                             drop_last=False,
                             persistent_workers=False,
                             pin_memory=True)
     test_loader = DataLoader(split_dict['test'],
                              batch_size=cfg.data.test_batch_size,
                              shuffle=False,
-                             num_workers=4,
+                             num_workers=1,
                              drop_last=False,
                              persistent_workers=False,
                              pin_memory=True)
@@ -296,7 +299,88 @@ def train(cfg: DictConfig) -> None:
     
         #(3) Test
         for i, (item, idx) in tqdm(enumerate(test_loader), desc="Testing", unit=" batch"):
-            pass #NOTE add testing functionality
+            # (a) grab variables and move to gpu
+            FSx, S, x = item['ksp'].to(device), item['s_maps'].to(device), item['gt_image'].to(device)
+            scan_idx, slice_idx = item['scan_idx'].tolist(), item['slice_idx'].tolist()
+            
+            # (b) grab pattern, make initial noisy sample, and sample from posterior
+            P = sampling_pattern.sample_mask(n=x.shape[0]).detach()
+            
+            y = P * FSx
+            x_hat_mvue = get_mvue_torch(y, S)
+            norm_mins, norm_maxes = get_min_max(x_hat_mvue)
+            x_init = normalize(x_hat_mvue, norm_mins, norm_maxes)
+            x_init = x_init + cfg.recon.sigma_max * torch.randn_like(x_init)
+            
+            x_hat = recon_alg(x_init=x_init, FSx=FSx, P=P, S=S)
+            
+            # (d) logging metrics and saving images for the current batch
+            with torch.no_grad():
+                # (i) metrics
+                resid = x_hat - x
+                gt_mse = torch.mean(torch.square(resid), dim=[1,2,3]) 
+                gt_mae = torch.mean(torch.abs(resid), dim=[1,2,3]) 
+                
+                R_sample = (P.shape[2] * P.shape[3]) / torch.sum(P, dim=[1, 2, 3])
+                
+                metrics_dict = {"gt_mse": gt_mse.squeeze().detach().cpu().numpy(),
+                                "gt_mae": gt_mae.squeeze().detach().cpu().numpy(),
+                                "R_sample": R_sample.squeeze().detach().cpu().numpy()}
+                metrics.add_external_metrics(metrics_dict, iter_num=epoch, iter_type="test")
+                metrics.calc_iter_metrics(x_hat=x_hat, x=x, iter_num=epoch, iter_type="test")
+                
+                # (ii) save images
+                if i == 0:
+                    #Save sampling patterns on first batch
+                    P = sampling_pattern.sample_mask(n=1).detach().cpu() #[1,1,H,W]
+                    P_prob = sampling_pattern.probabilistic_mask().detach().cpu() #[1,1,H,W]
+                    
+                    pattern_path = os.path.join(log_dir, "images", "learned_masks")
+                    
+                    save_images(P, [f"Sample_{epoch}"], pattern_path)
+                    save_images(P_prob, [f"Prob_{epoch}"], pattern_path)
+                
+                #Save reconstructions at every iteration
+                x_idx = [f"{scan_id}_{slice_id}" for scan_id, slice_id in zip(scan_idx, slice_idx)]
+                x_resid_idx = [f"{idx}_resid" for idx in x_idx]
+                x_resid_stretched_idx = [f"{idx}_resid_stretched" for idx in x_idx]
+                
+                norm_factor = np.percentile(torch.norm(x, dim=1).detach().cpu().numpy(), q=99, axis=(1, 2)) #[N]
+                norm_factor = torch.from_numpy(norm_factor).to(device).view(-1, 1, 1, 1)
+                
+                x_hat_vis = x_hat / norm_factor
+                x_vis = x / norm_factor
+                x_resid = x_hat_vis - x_vis
+                x_resid_stretched = 5 * x_resid
+                
+                recovered_path = os.path.join(log_dir, "images",  "test_recon", f"epoch_{epoch}")
+                save_images(x_hat_vis, x_idx, recovered_path)
+                save_images(x_resid, x_resid_idx, recovered_path)
+                save_images(x_resid_stretched, x_resid_stretched_idx, recovered_path)
+                
+                #save ground truth images at every test iteration
+                true_path = os.path.join(log_dir, "images",  "test")
+                save_images(x_vis, x_idx, true_path)
+                
+                # (iii) grab the stats and save to a file
+                metric_dict = metrics.get_dict("test")[f'iter_{epoch}']
+                psnr_array = metric_dict['psnr'][-len(x_idx):]
+                ssim_array = metric_dict['ssim'][-len(x_idx):]
+                sample_metric_dicts = [{"Slice": idx, "PSNR": psnr_array[i], "SSIM": ssim_array[i]} for i, idx in enumerate(x_idx)]
+                metric_path = os.path.join(recovered_path, "sample_metrics.json")
+                with open(metric_path, 'a') as f:
+                    json.dump(sample_metric_dicts, f, indent=4)
+                    
+                avg_metric_dict = [{"MEAN PSNR": np.mean(metric_dict['psnr']), "MEAN SSIM": np.mean(metric_dict['ssim']),
+                                    "STD PSNR": np.std(metric_dict['psnr']), "STD SSIM": np.std(metric_dict['ssim'])}]
+                avg_metric_path = os.path.join(recovered_path, "avg_sample_metrics.json")
+                with open(avg_metric_path, 'w') as f:
+                    json.dump(avg_metric_dict, f, indent=4)
+                    
+        # (f) log metrics for the entire epoch
+        metrics.aggregate_iter_metrics(iter_num=epoch, iter_type="test")
+        metrics.add_metrics_to_tb(tb_logger=tb_logger, step=epoch, iter_type="test")
+        log.info(metrics.get_all_metrics(iter_num=epoch, iter_type="test"))
     
         #NOTE add checkpointing functionality
         log.info("Saving final checkpoint...") 

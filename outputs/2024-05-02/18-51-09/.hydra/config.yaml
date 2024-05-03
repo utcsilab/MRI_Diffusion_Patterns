@@ -47,13 +47,13 @@ recon:
 training:
   num_iters: -1
   optimizer: greedy_topk
-  k: 100
+  k: 400
   include_conjugates: true
   val_every: 100000
   checkpoint_every: 10
   loss_type: l2
   likelihood_step_size: 1.0
-gpu: 3
+gpu: 2
 save_dir: /csiNAS2/slow/sriram/MRI_refactor
 seed: 2023
-exp_name: Brain_DPS
+exp_name: k400_R10_BS10_conjugate

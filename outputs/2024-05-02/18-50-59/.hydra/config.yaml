@@ -1,0 +1,59 @@
+data:
+  dataset: BrainMultiCoil
+  train_input_dir: /csiNAS/brett/sites_new/Training/site5/ksp
+  train_maps_dir: /csiNAS/brett/sites_new/Training/site5/maps
+  test_input_dir: /csiNAS/brett/sites_new/Validation/site5/ksp
+  test_maps_dir: /csiNAS/brett/sites_new/Validation/site5/maps
+  file_pattern: '*T2*.h5'
+  ignore_slice_list: null
+  image_size: 384
+  train_num_slices_path: /home/sravula/meta_exp/brain_site5_train_numslices.npy
+  test_num_slices_path: /home/sravula/meta_exp/brain_site5_test_numslices.npy
+  load_slice_info: true
+  save_slice_info: false
+  kspace_pad: 28
+  remove_start: 0
+  remove_end: 5
+  cache_data: true
+  num_train: 200
+  num_val: 50
+  num_test: 100
+  train_batch_size: 10
+  val_batch_size: 5
+  test_batch_size: 5
+pattern:
+  sample_pattern: Learned3d
+  num_acs_lines: 16
+  R: 10
+  cut_corners: true
+  init_dist: uniform
+  sampler: gumbel
+  tau: 1.0
+recon:
+  steps: 100
+  rho: 7.0
+  S_churn: 0.0
+  S_min: 0.0
+  S_max: .inf
+  S_noise: 1.0
+  sigma_min: 0.002
+  sigma_max: 80.0
+  net_path: /home/sravula/meta_exp/network-snapshot-008040.pkl
+  hard_consistent_output: false
+  alg_type: dps
+  kwargs:
+    likelihood_step_size: 10.0
+    normalize_grad: true
+training:
+  num_iters: -1
+  optimizer: greedy_topk
+  k: 300
+  include_conjugates: true
+  val_every: 100000
+  checkpoint_every: 10
+  loss_type: l2
+  likelihood_step_size: 1.0
+gpu: 1
+save_dir: /csiNAS2/slow/sriram/MRI_refactor
+seed: 2023
+exp_name: k300_R10_BS10_conjugate
