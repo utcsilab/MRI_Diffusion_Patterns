@@ -171,9 +171,9 @@ class BrainMultiCoil(Dataset):
 
         #NOTE this is legacy pre-scaling - EDM is trained with different scaling
         # commenting this for now, but old results were using both scalings!!!
-        # gt_mvue_scale_factor = np.percentile(np.abs(gt_mvue),99)
-        # ksp /= gt_mvue_scale_factor
-        # gt_mvue /= gt_mvue_scale_factor
+        gt_mvue_scale_factor = np.percentile(np.abs(gt_mvue),99)
+        ksp /= gt_mvue_scale_factor
+        gt_mvue /= gt_mvue_scale_factor
 
         gt_mvue_two_channel = np.zeros((2,) + gt_mvue.shape, dtype=np.float32)
         gt_mvue_two_channel[0] = np.real(gt_mvue).astype(np.float32)
