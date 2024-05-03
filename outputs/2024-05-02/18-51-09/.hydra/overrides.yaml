@@ -1,7 +1,0 @@
-- pattern.R=10
-- data.train_batch_size=10
-- training.checkpoint_every=10
-- gpu=2
-- training.k=400
-- training.include_conjugates=true
-- exp_name=k400_R10_BS10_conjugate
