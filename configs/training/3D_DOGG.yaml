@@ -2,7 +2,7 @@ num_iters: -1
 
 optimizer: 'greedy_topk'
 
-k: 1
+k: 100
 
 include_conjugates: false
 

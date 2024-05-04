@@ -22,6 +22,7 @@ from src.recon_algorithms.diffusion_utils import load_net
 from src.recon_algorithms.diffusion import DiffusionMRIReconstruction
 from src.data.data_utils import split_dataset
 from src.data.fastMRI import BrainMultiCoil, KneesMultiCoil
+from src.data.dict_dataset import DictDataset
 from src.utils.metric_utils import Metrics
 from src.utils.training_utils import make_noisy_sample, single_step_posterior_estimate, calculate_loss
 from src.utils.helpers import get_mvue_torch, get_min_max, normalize
@@ -61,62 +62,71 @@ def train(cfg: DictConfig) -> None:
         dataset_class = BrainMultiCoil
     elif cfg.data.dataset == "KneesMultiCoil":
         dataset_class = KneesMultiCoil
+    elif cfg.data.dataset == "DictDataset":
+        dataset_class = DictDataset
     else:
         raise NotImplementedError(f"Dataset class {cfg.data.dataset} not implemented.")
     
     log.info("Initialising datasets")
     
-    train_dataset = dataset_class(input_dir=cfg.data.train_input_dir,
-                                  maps_dir=cfg.data.train_maps_dir,
-                                  file_pattern=cfg.data.file_pattern,
-                                  ignore_slice_list=cfg.data.ignore_slice_list,
-                                  image_size=cfg.data.image_size,
-                                  num_slices_path=cfg.data.train_num_slices_path,
-                                  load_slice_info=cfg.data.load_slice_info,
-                                  save_slice_info=cfg.data.save_slice_info,
-                                  kspace_pad=cfg.data.kspace_pad,
-                                  remove_start=cfg.data.remove_start,
-                                  remove_end=cfg.data.remove_end,
-                                  cache_data=cfg.data.cache_data,
-                                  log=log)
-    
-    test_dataset = dataset_class(input_dir=cfg.data.test_input_dir,
-                                  maps_dir=cfg.data.test_maps_dir,
-                                  file_pattern=cfg.data.file_pattern,
-                                  ignore_slice_list=cfg.data.ignore_slice_list,
-                                  image_size=cfg.data.image_size,
-                                  num_slices_path=cfg.data.test_num_slices_path,
-                                  load_slice_info=cfg.data.load_slice_info,
-                                  save_slice_info=cfg.data.save_slice_info,
-                                  kspace_pad=cfg.data.kspace_pad,
-                                  remove_start=cfg.data.remove_start,
-                                  remove_end=cfg.data.remove_end,
-                                  cache_data=cfg.data.cache_data,
-                                  log=log)
+    if cfg.data.dataset == "DictDataset":
+        train_split = DictDataset(data_fname=cfg.data.train_file, log=log)
+        val_split = DictDataset(data_fname=cfg.data.val_file, log=log)
+        test_split = DictDataset(data_fname=cfg.data.test_file, log=log)
+    else:
+        train_dataset = dataset_class(input_dir=cfg.data.train_input_dir,
+                                    maps_dir=cfg.data.train_maps_dir,
+                                    file_pattern=cfg.data.file_pattern,
+                                    ignore_slice_list=cfg.data.ignore_slice_list,
+                                    image_size=cfg.data.image_size,
+                                    num_slices_path=cfg.data.train_num_slices_path,
+                                    load_slice_info=cfg.data.load_slice_info,
+                                    save_slice_info=cfg.data.save_slice_info,
+                                    kspace_pad=cfg.data.kspace_pad,
+                                    remove_start=cfg.data.remove_start,
+                                    remove_end=cfg.data.remove_end,
+                                    cache_data=cfg.data.cache_data,
+                                    log=log)
+        
+        test_dataset = dataset_class(input_dir=cfg.data.test_input_dir,
+                                    maps_dir=cfg.data.test_maps_dir,
+                                    file_pattern=cfg.data.file_pattern,
+                                    ignore_slice_list=cfg.data.ignore_slice_list,
+                                    image_size=cfg.data.image_size,
+                                    num_slices_path=cfg.data.test_num_slices_path,
+                                    load_slice_info=cfg.data.load_slice_info,
+                                    save_slice_info=cfg.data.save_slice_info,
+                                    kspace_pad=cfg.data.kspace_pad,
+                                    remove_start=cfg.data.remove_start,
+                                    remove_end=cfg.data.remove_end,
+                                    cache_data=cfg.data.cache_data,
+                                    log=log)
 
-    split_dict = split_dataset(train_set=train_dataset,
-                               test_set=test_dataset,
-                               num_train=cfg.data.num_train,
-                               num_val=cfg.data.num_val,
-                               num_test=cfg.data.num_test,
-                               seed=cfg.seed,
-                               log=log)
+        split_dict = split_dataset(train_set=train_dataset,
+                                test_set=test_dataset,
+                                num_train=cfg.data.num_train,
+                                num_val=cfg.data.num_val,
+                                num_test=cfg.data.num_test,
+                                seed=cfg.seed,
+                                log=log)
 
-    train_loader = DataLoader(split_dict['train'], 
+        train_split, val_split, test_split = split_dict['train'], split_dict['val'], split_dict['test']
+
+    train_loader = DataLoader(train_split, 
                               batch_size=cfg.data.train_batch_size,
                               shuffle=True,
                               num_workers=1,
                               drop_last=True,
                               persistent_workers=True,
                               pin_memory=True)
-    val_loader = DataLoader(split_dict['val'],
+    val_loader = DataLoader(val_split,
                             batch_size=cfg.data.val_batch_size,
                             shuffle=False,
                             num_workers=1,
                             drop_last=False,
                             persistent_workers=False,
                             pin_memory=True)
-    test_loader = DataLoader(split_dict['test'],
+    test_loader = DataLoader(test_split,
                              batch_size=cfg.data.test_batch_size,
                              shuffle=False,
                              num_workers=1,
@@ -296,6 +306,14 @@ def train(cfg: DictConfig) -> None:
             #Check if complete
             if finished_flag:
                 log.info("Finishing logging and starting testing (if desired)")
+                
+                if cfg.data.dataset != "DictDataset":
+                    train_loader.dataset.dataset.teardown()
+                    val_loader.dataset.dataset.teardown()
+                else:
+                    train_loader.dataset.teardown()
+                    val_loader.dataset.teardown()
+                    
                 break
     
         #(3) Test
@@ -387,10 +405,10 @@ def train(cfg: DictConfig) -> None:
         #NOTE add checkpointing functionality
         log.info("Saving final checkpoint...") 
 
-        #(4) clean up 
-        train_loader.dataset.dataset.teardown()
-        val_loader.dataset.dataset.teardown()
-        test_loader.dataset.dataset.teardown()
+        if cfg.data.dataset != "DictDataset":
+            test_loader.dataset.dataset.teardown()
+        else:
+            test_loader.dataset.teardown()
             
 if __name__ == "__main__":
     sys.exit(train())

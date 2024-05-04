@@ -1,0 +1,15 @@
+dataset: "DictDataset"
+
+train_file: "/home/sravula/MRI_Diffusion_Patterns/data/PD_3T_knee_train.pkl"
+val_file: "/home/sravula/MRI_Diffusion_Patterns/data/PD_3T_knee_val_v2.pkl"
+test_file: "/home/sravula/MRI_Diffusion_Patterns/data/PD_3T_knee_test.pkl"
+
+image_size: 320
+
+train_batch_size: 10
+val_batch_size: 5
+test_batch_size: 5
+
+num_train: 200
+num_val: 50
+num_test: 100

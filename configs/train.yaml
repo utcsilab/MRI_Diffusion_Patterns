@@ -1,5 +1,5 @@
 defaults:
-  - data: T2_3T_brains
+  - data: T2_3T_brains_dict
   - pattern: 3D_DOGG
   - recon: DPS_brains
   - training: 3D_DOGG
