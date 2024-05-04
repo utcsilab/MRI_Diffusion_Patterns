@@ -119,20 +119,17 @@ def train(cfg: DictConfig) -> None:
                               batch_size=cfg.data.train_batch_size,
                               shuffle=True,
                               num_workers=0,
-                              drop_last=True,
-                              persistent_workers=False)
+                              drop_last=True)
     val_loader = DataLoader(val_split,
                             batch_size=cfg.data.val_batch_size,
                             shuffle=False,
                             num_workers=0,
-                            drop_last=False,
-                            persistent_workers=False)
+                            drop_last=False)
     test_loader = DataLoader(test_split,
                              batch_size=cfg.data.test_batch_size,
                              shuffle=False,
                              num_workers=0,
-                             drop_last=False,
-                             persistent_workers=False)
+                             drop_last=False)
     
     # (3) Check and set up num_iters if needed
     # NOTE right now this only works for 3D sampling patterns

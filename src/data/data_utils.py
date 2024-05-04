@@ -34,7 +34,7 @@ def split_dataset(train_set, test_set, num_train, num_val, num_test, seed, log):
     Returns:
         out_dict (dict): Dictionary containing the train, val, and test datasets.
     """
-    tr_indices = list(range(len(train_set)))
+    tr_indices = list(range(len(train_set))) if train_set is not None else []
     te_indices = list(range(len(test_set)))
 
     log.info(f"Train Dataset Size: {len(train_set)}")
@@ -47,12 +47,12 @@ def split_dataset(train_set, test_set, num_train, num_val, num_test, seed, log):
     np.random.shuffle(te_indices)
     np.random.set_state(random_state)
 
-    train_indices = tr_indices[:num_train]
-    val_indices = tr_indices[num_train:num_train+num_val]
+    train_indices = tr_indices[:num_train] if train_set is not None else []
+    val_indices = tr_indices[num_train:num_train+num_val] if train_set is not None else []
     test_indices = te_indices[:num_test]
 
-    train_dataset = torch.utils.data.Subset(train_set, train_indices)
-    val_dataset = torch.utils.data.Subset(train_set, val_indices)
+    train_dataset = torch.utils.data.Subset(train_set, train_indices) if train_set is not None else None
+    val_dataset = torch.utils.data.Subset(train_set, val_indices) if train_set is not None else None
     test_dataset = torch.utils.data.Subset(test_set, test_indices)
 
     out_dict = {'train': train_dataset,

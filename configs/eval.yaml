@@ -1,0 +1,12 @@
+defaults:
+  - data: T2_3T_brains_dict
+  - pattern: 3D_Poisson
+  - recon: DPS_brains
+
+gpu: 0
+
+save_dir: '/csiNAS2/slow/sriram/MRI_refactor'
+
+seed: 2023
+
+exp_name: "Brain_DPS_Eval"
