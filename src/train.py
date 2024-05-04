@@ -115,7 +115,7 @@ def train(cfg: DictConfig) -> None:
     train_loader = DataLoader(train_split, 
                               batch_size=cfg.data.train_batch_size,
                               shuffle=True,
-                              num_workers=1,
+                              num_workers=4,
                               drop_last=True,
                               persistent_workers=True,
                               pin_memory=True)

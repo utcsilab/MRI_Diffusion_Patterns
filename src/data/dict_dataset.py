@@ -29,5 +29,5 @@ class DictDataset(Dataset):
         del self.data
     
     def __getitem__(self, idx):
-        return self.data[self.keys[idx]]
+        return self.data[self.keys[idx]], idx
     
