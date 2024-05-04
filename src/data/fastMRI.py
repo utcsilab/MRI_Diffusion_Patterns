@@ -188,9 +188,9 @@ class BrainMultiCoil(Dataset):
                 s_maps = np.pad(s_maps, ((0,self.kspace_pad - s_maps.shape[0]), (0,0), (0,0)))
 
         # Output
-        sample = {'ksp': ksp.astype(np.complex64), #[C, H, W] complex64 numpy array
-                  's_maps': s_maps.astype(np.complex64), #[C, H, W] complex64 numpy array
-                  'gt_image': gt_mvue_two_channel.astype(np.float32),
+        sample = {'ksp': torch.from_numpy(ksp.astype(np.complex64)), #[C, H, W] complex64 numpy array
+                  's_maps': torch.from_numpy(s_maps.astype(np.complex64)), #[C, H, W] complex64 numpy array
+                  'gt_image': torch.from_numpy(gt_mvue_two_channel.astype(np.float32)),
                   'scan_idx': scan_idx,
                   'slice_idx': slice_idx}
         
