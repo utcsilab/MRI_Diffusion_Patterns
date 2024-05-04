@@ -73,6 +73,9 @@ def train(cfg: DictConfig) -> None:
         train_split = DictDataset(data_fname=cfg.data.train_file, log=log)
         val_split = DictDataset(data_fname=cfg.data.val_file, log=log)
         test_split = DictDataset(data_fname=cfg.data.test_file, log=log)
+        
+        if cfg.data.transfer_train_to_gpu:
+            train_split.transfer_to_device(device=device)
     else:
         train_dataset = dataset_class(input_dir=cfg.data.train_input_dir,
                                     maps_dir=cfg.data.train_maps_dir,
@@ -115,24 +118,21 @@ def train(cfg: DictConfig) -> None:
     train_loader = DataLoader(train_split, 
                               batch_size=cfg.data.train_batch_size,
                               shuffle=True,
-                              num_workers=4,
+                              num_workers=0,
                               drop_last=True,
-                              persistent_workers=True,
-                              pin_memory=True)
+                              persistent_workers=False)
     val_loader = DataLoader(val_split,
                             batch_size=cfg.data.val_batch_size,
                             shuffle=False,
-                            num_workers=1,
+                            num_workers=0,
                             drop_last=False,
-                            persistent_workers=False,
-                            pin_memory=True)
+                            persistent_workers=False)
     test_loader = DataLoader(test_split,
                              batch_size=cfg.data.test_batch_size,
                              shuffle=False,
-                             num_workers=1,
+                             num_workers=0,
                              drop_last=False,
-                             persistent_workers=False,
-                             pin_memory=True)
+                             persistent_workers=False)
     
     # (3) Check and set up num_iters if needed
     # NOTE right now this only works for 3D sampling patterns
