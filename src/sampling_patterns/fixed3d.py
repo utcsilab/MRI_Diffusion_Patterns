@@ -25,12 +25,15 @@ class Fixed3dPattern:
         # Initialize the mask
         c = sigpy.mri.poisson(img_shape=(length, length),
                               accel=R,
-                              calib=(num_acs_lines, num_acs_lines),
                               dtype=np.float32,
                               crop_corner=cut_corners,
                               seed=seed + 1 if seed==2023 else seed) #hangs if seed is 2023
         
+        center_line_idx = np.arange((length - num_acs_lines) // 2, (length + num_acs_lines) // 2)
+        center_line_idx = np.meshgrid(center_line_idx, center_line_idx)
+        
         self.weights = torch.from_numpy(c).to(device=device, dtype=torch.float32)
+        self.weights[center_line_idx] = 1.
     
     def sample_mask(self, n=1):
         """
