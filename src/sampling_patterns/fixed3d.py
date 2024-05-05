@@ -28,7 +28,7 @@ class Fixed3dPattern:
                               calib=(num_acs_lines, num_acs_lines),
                               dtype=np.float32,
                               crop_corner=cut_corners,
-                              seed=seed)
+                              seed=seed + 1 if seed==2023 else seed) #hangs if seed is 2023
         
         self.weights = torch.from_numpy(c).to(device=device, dtype=torch.float32)
     

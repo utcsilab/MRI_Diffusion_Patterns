@@ -265,24 +265,18 @@ def train(cfg: DictConfig) -> None:
                         x_resid_idx = [f"{idx}_resid" for idx in x_idx]
                         x_resid_stretched_idx = [f"{idx}_resid_stretched" for idx in x_idx]
                         
-                        # norm_factor = np.percentile(torch.norm(x, dim=1).detach().cpu().numpy(), q=99, axis=(1, 2)) #[N]
-                        # norm_factor = torch.from_numpy(norm_factor).to(device).view(-1, 1, 1, 1)
-                        norm_factor = 1
-                        
-                        x_hat_vis = x_hat / norm_factor
-                        x_vis = x / norm_factor
-                        x_resid = x_hat_vis - x_vis
+                        x_resid = x_hat - x
                         x_resid_stretched = 5 * x_resid
                         
                         recovered_path = os.path.join(log_dir, "images",  "train_recon", f"epoch_{epoch}")
-                        save_images(x_hat_vis, x_idx, recovered_path)
+                        save_images(x_hat, x_idx, recovered_path)
                         save_images(x_resid, x_resid_idx, recovered_path)
                         save_images(x_resid_stretched, x_resid_stretched_idx, recovered_path)
                         
                         #Save the ground truth images only once
                         if epoch == 0:
                             true_path = os.path.join(log_dir, "images",  "train")
-                            save_images(x_vis, x_idx, true_path)
+                            save_images(x, x_idx, true_path)
 
                 # (e) check if we are done
                 if finished_flag:
@@ -361,23 +355,17 @@ def train(cfg: DictConfig) -> None:
                 x_resid_idx = [f"{idx}_resid" for idx in x_idx]
                 x_resid_stretched_idx = [f"{idx}_resid_stretched" for idx in x_idx]
                 
-                # norm_factor = np.percentile(torch.norm(x, dim=1).detach().cpu().numpy(), q=99, axis=(1, 2)) #[N]
-                # norm_factor = torch.from_numpy(norm_factor).to(device).view(-1, 1, 1, 1)
-                norm_factor = 1
-                
-                x_hat_vis = x_hat / norm_factor
-                x_vis = x / norm_factor
-                x_resid = x_hat_vis - x_vis
+                x_resid = x_hat - x
                 x_resid_stretched = 5 * x_resid
                 
                 recovered_path = os.path.join(log_dir, "images",  "test_recon", f"epoch_{epoch}")
-                save_images(x_hat_vis, x_idx, recovered_path)
+                save_images(x_hat, x_idx, recovered_path)
                 save_images(x_resid, x_resid_idx, recovered_path)
                 save_images(x_resid_stretched, x_resid_stretched_idx, recovered_path)
                 
                 #save ground truth images at every test iteration
                 true_path = os.path.join(log_dir, "images",  "test")
-                save_images(x_vis, x_idx, true_path)
+                save_images(x, x_idx, true_path)
                 
                 # (iii) grab the stats and save to a file
                 metric_dict = metrics.get_dict("test")[f'iter_{epoch}']

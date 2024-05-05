@@ -41,6 +41,8 @@ def train(cfg: DictConfig) -> None:
     device = torch.device(f"cuda:{cfg.gpu}" if torch.cuda.is_available() else "cpu")
     
     # (1) Setup Sampling pattern
+    log.info("Initialising Sampling Pattern")
+    
     if cfg.pattern.sample_pattern == 'Fixed2dPattern':
         sampling_pattern = Fixed2dPattern(num_acs_lines=cfg.pattern.num_acs_lines,
                                          orientation=cfg.pattern.orientation,
@@ -56,8 +58,6 @@ def train(cfg: DictConfig) -> None:
                                           seed=cfg.seed)
     else:
         raise NotImplementedError(f"Pattern class {cfg.pattern.sample_pattern} not implemented.") 
-    
-    log.info("Initialising Sampling Pattern")
     
     # (2) Setup datasets
     if cfg.data.dataset == "BrainMultiCoil":
@@ -138,13 +138,11 @@ def train(cfg: DictConfig) -> None:
     
     # (7) Save a snap of the initial sampling patterns before any training
     P = sampling_pattern.sample_mask(n=1).detach().cpu() #[1,1,H,W]
-    P_prob = sampling_pattern.probabilistic_mask().detach().cpu() #[1,1,H,W]
     
     pattern_path = os.path.join(log_dir, "images", "learned_masks")
     make_dirs(os.path.join(log_dir, "images"), ["learned_masks"])
     
     save_images(P, ["Sample_00"], pattern_path)
-    save_images(P_prob, ["Prob_00"], pattern_path)
     
     acceleration = (torch.numel(P) / torch.sum(P)).item()
     log.info(f"Initial acceleration: {acceleration}")
@@ -190,35 +188,27 @@ def train(cfg: DictConfig) -> None:
                 if i == 0:
                     #Save sampling patterns on first batch
                     P = sampling_pattern.sample_mask(n=1).detach().cpu() #[1,1,H,W]
-                    P_prob = sampling_pattern.probabilistic_mask().detach().cpu() #[1,1,H,W]
                     
                     pattern_path = os.path.join(log_dir, "images", "learned_masks")
                     
                     save_images(P, [f"Sample_{0}"], pattern_path)
-                    save_images(P_prob, [f"Prob_{0}"], pattern_path)
                 
                 #Save reconstructions at every iteration
                 x_idx = [f"{scan_id}_{slice_id}" for scan_id, slice_id in zip(scan_idx, slice_idx)]
                 x_resid_idx = [f"{idx}_resid" for idx in x_idx]
                 x_resid_stretched_idx = [f"{idx}_resid_stretched" for idx in x_idx]
                 
-                # norm_factor = np.percentile(torch.norm(x, dim=1).detach().cpu().numpy(), q=99, axis=(1, 2)) #[N]
-                # norm_factor = torch.from_numpy(norm_factor).to(device).view(-1, 1, 1, 1)
-                norm_factor = 1
-                
-                x_hat_vis = x_hat / norm_factor
-                x_vis = x / norm_factor
-                x_resid = x_hat_vis - x_vis
+                x_resid = x_hat - x
                 x_resid_stretched = 5 * x_resid
                 
                 recovered_path = os.path.join(log_dir, "images",  "test_recon", f"epoch_{0}")
-                save_images(x_hat_vis, x_idx, recovered_path)
+                save_images(x_hat, x_idx, recovered_path)
                 save_images(x_resid, x_resid_idx, recovered_path)
                 save_images(x_resid_stretched, x_resid_stretched_idx, recovered_path)
                 
                 #save ground truth images at every test iteration
                 true_path = os.path.join(log_dir, "images",  "test")
-                save_images(x_vis, x_idx, true_path)
+                save_images(x, x_idx, true_path)
                 
                 # (iii) grab the stats and save to a file
                 metric_dict = metrics.get_dict("test")[f'iter_{0}']
