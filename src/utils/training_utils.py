@@ -91,6 +91,8 @@ def single_step_posterior_estimate(net, x_t, sigma_t, FSx, P, S, likelihood_step
     Returns:
         x_hat (torch.Tensor): Single-step posterior reconstruction E[x_0 | x_t, y].
                                 [N, 2, H, W] real-valued (unnormalized).
+        x_hat_0_unscaled (torch.Tensor): The denoised estimate E[x_0 | x_t].
+                                            [N, 2, H, W] real-valued (unnormalized).                        
     """
     #(0) Setup
     device = x_t.device
@@ -117,5 +119,5 @@ def single_step_posterior_estimate(net, x_t, sigma_t, FSx, P, S, likelihood_step
     #(3) Create the final posterior mean prediction and unnormalize properly
     x_hat = x_hat_0 - likelihood_step_size * likelihood_score
     
-    return unnormalize(x_hat, norm_mins, norm_maxes)
+    return unnormalize(x_hat, norm_mins, norm_maxes), x_hat_0_unscaled
 

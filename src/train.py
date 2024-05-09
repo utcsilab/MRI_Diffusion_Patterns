@@ -134,7 +134,7 @@ def train(cfg: DictConfig) -> None:
     # (3) Check and set up num_iters if needed
     # NOTE right now this only works for 3D sampling patterns
     if cfg.training.num_iters == -1:
-        updates_per_epoch = cfg.data.num_train / cfg.data.train_batch_size
+        updates_per_epoch = cfg.data.num_train // cfg.data.train_batch_size
         cfg.training.num_iters = int(np.ceil(((cfg.data.image_size**2) / 
                                     cfg.pattern.R - cfg.pattern.num_acs_lines**2) / updates_per_epoch))
         
@@ -218,8 +218,8 @@ def train(cfg: DictConfig) -> None:
                 
                 x_t, sigma_t = make_noisy_sample(x=x, sigma_t=None, normalize_input=True)
                 
-                x_hat = single_step_posterior_estimate(net=net, x_t=x_t, sigma_t=sigma_t, FSx=FSx, P=P, S=S, 
-                                                       likelihood_step_size=cfg.training.likelihood_step_size)
+                x_hat, x_hat_unconditional = single_step_posterior_estimate(net=net, x_t=x_t, sigma_t=sigma_t, FSx=FSx, P=P, S=S, 
+                                                likelihood_step_size=cfg.training.likelihood_step_size)
                 
                 train_loss = calculate_loss(x_hat=x_hat, x=x, loss_type=cfg.training.loss_type)
                 train_loss.backward()
@@ -229,7 +229,7 @@ def train(cfg: DictConfig) -> None:
                     opt.step()
                     opt.zero_grad()
                 elif cfg.training.optimizer == "greedy_topk":
-                    updates_per_epoch = cfg.data.num_train / cfg.data.train_batch_size
+                    updates_per_epoch = cfg.data.num_train // cfg.data.train_batch_size
                     total_updates = cfg.training.num_iters * updates_per_epoch
                     k = int(cfg.training.k * (i + epoch * updates_per_epoch) / total_updates) + 1
                     
@@ -243,13 +243,19 @@ def train(cfg: DictConfig) -> None:
                     gt_mse = torch.mean(torch.square(resid), dim=[1,2,3]) 
                     gt_mae = torch.mean(torch.abs(resid), dim=[1,2,3]) 
                     
+                    resid_unconditional = x_hat_unconditional - x
+                    gt_mse_unconditional = torch.mean(torch.square(resid_unconditional), dim=[1,2,3])
+                    gt_mae_unconditional = torch.mean(torch.abs(resid_unconditional), dim=[1,2,3])
+                    
                     R_sample = (P.shape[2] * P.shape[3]) / torch.sum(P, dim=[1, 2, 3])
                     
                     metrics_dict = {"train_loss": np.array([train_loss.item()] * x.shape[0]),
                                     "sigma_t": sigma_t.squeeze().detach().cpu().numpy(),
                                     "gt_mse": gt_mse.squeeze().detach().cpu().numpy(),
                                     "gt_mae": gt_mae.squeeze().detach().cpu().numpy(),
-                                    "R_sample": R_sample.squeeze().detach().cpu().numpy()}
+                                    "R_sample": R_sample.squeeze().detach().cpu().numpy(),
+                                    "gt_mse_unconditional": gt_mse_unconditional.squeeze().detach().cpu().numpy(),
+                                    "gt_mae_unconditional": gt_mae_unconditional.squeeze().detach().cpu().numpy()}
                     if cfg.training.optimizer == "greedy_topk":
                         metrics_dict["k"] = np.array([k] * x.shape[0])
                     metrics.add_external_metrics(metrics_dict, iter_num=epoch, iter_type="train")
