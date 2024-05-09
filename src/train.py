@@ -229,7 +229,11 @@ def train(cfg: DictConfig) -> None:
                     opt.step()
                     opt.zero_grad()
                 elif cfg.training.optimizer == "greedy_topk":
-                    finished_flag = sampling_pattern.greedy_topk_step(k=cfg.training.k, 
+                    updates_per_epoch = cfg.data.num_train / cfg.data.train_batch_size
+                    total_updates = cfg.training.num_iters * updates_per_epoch
+                    k = int(cfg.training.k * (i + epoch * updates_per_epoch) / total_updates) + 1
+                    
+                    finished_flag = sampling_pattern.greedy_topk_step(k=k, 
                                                                       include_conjugates=cfg.training.include_conjugates)
                 
                 # (d) logging metrics and saving images for the current batch
@@ -246,6 +250,8 @@ def train(cfg: DictConfig) -> None:
                                     "gt_mse": gt_mse.squeeze().detach().cpu().numpy(),
                                     "gt_mae": gt_mae.squeeze().detach().cpu().numpy(),
                                     "R_sample": R_sample.squeeze().detach().cpu().numpy()}
+                    if cfg.training.optimizer == "greedy_topk":
+                        metrics_dict["k"] = np.array([k] * x.shape[0])
                     metrics.add_external_metrics(metrics_dict, iter_num=epoch, iter_type="train")
                     metrics.calc_iter_metrics(x_hat=x_hat, x=x, iter_num=epoch, iter_type="train")
                     
