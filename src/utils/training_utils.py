@@ -102,7 +102,8 @@ def single_step_posterior_estimate(net, x_t, sigma_t, FSx, P, S, likelihood_step
         class_labels = torch.zeros((x_t.shape[0], net.label_dim), device=device) #[N, label_dim]
     
     with torch.no_grad():
-        y = P * FSx #[N, C, H, W] complex, the undersampled multi-coil k-space measurements
+        # y = P * FSx #[N, C, H, W] complex, the undersampled multi-coil k-space measurements
+        y = FSx
         x_hat_mvue = get_mvue_torch(y, S)
         norm_mins, norm_maxes = get_min_max(x_hat_mvue)
     
