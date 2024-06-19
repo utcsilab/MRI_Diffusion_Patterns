@@ -218,7 +218,7 @@ def train(cfg: DictConfig) -> None:
                 
                 x_t, sigma_t = make_noisy_sample(x=x, sigma_t=None, normalize_input=True)
                 
-                x_hat, x_hat_unconditional = single_step_posterior_estimate(net=net, x_t=x_t, sigma_t=sigma_t, FSx=FSx, P=P, S=S, 
+                x_hat, x_hat_unconditional, likelihood_score, x_hat_0 = single_step_posterior_estimate(net=net, x_t=x_t, sigma_t=sigma_t, FSx=FSx, P=P, S=S, 
                                                 likelihood_step_size=cfg.training.likelihood_step_size)
                 
                 train_loss = calculate_loss(x_hat=x_hat, x=x, loss_type=cfg.training.loss_type)

@@ -2,6 +2,12 @@ import torch
 from torchmetrics.functional import structural_similarity_index_measure
 from src.utils.helpers import normalize, unnormalize, get_min_max, MRI_forward_nomask, get_mvue_torch
 
+def cosine_similarity_loss(x_hat, x):
+    x_hat_norm = torch.norm(x_hat, p=2, dim=(1,2,3))
+    x_norm = torch.norm(x, p=2, dim=(1,2,3))
+    cosine_sim_per_sample = torch.sum(x_hat * x, dim=(1,2,3)) / (x_hat_norm * x_norm)
+    
+    return torch.mean(1 - cosine_sim_per_sample)
 
 def calculate_loss(x_hat, x, loss_type="l2"):
     """
@@ -120,5 +126,4 @@ def single_step_posterior_estimate(net, x_t, sigma_t, FSx, P, S, likelihood_step
     #(3) Create the final posterior mean prediction and unnormalize properly
     x_hat = x_hat_0 - likelihood_step_size * likelihood_score
     
-    return unnormalize(x_hat, norm_mins, norm_maxes), x_hat_0_unscaled
-
+    return unnormalize(x_hat, norm_mins, norm_maxes), x_hat_0_unscaled, likelihood_score, x_hat_0
