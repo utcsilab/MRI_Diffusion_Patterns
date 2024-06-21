@@ -2,14 +2,12 @@ import numpy as np
 import h5py
 import os
 from tqdm import tqdm
-import sigpy as sp
 import copy
 from multiprocessing import Manager
 
 import torch
 from torch.utils.data import Dataset
 
-from src.data.data_utils import get_all_files
 from src.utils.helpers import get_mvue_numpy
 
 class BrainMultiCoilWhitened(Dataset):
@@ -130,6 +128,10 @@ class BrainMultiCoilWhitened(Dataset):
         mvue_masked = get_mvue_numpy(masked_ksp, s_maps) # [H, W]
         acs_norm_factor = np.percentile(np.abs(mvue_masked), 99)
         
+        # Normalise the k-space and the ground truth image
+        ksp = ksp / acs_norm_factor
+        gt_mvue = gt_mvue / acs_norm_factor
+        
         # Apply optional padding
         if self.pad_coils and s_maps.shape[0] < self.max_N_coils and ksp.shape[0] < self.max_N_coils:
             s_maps = np.pad(s_maps, ((0, self.max_N_coils - s_maps.shape[0]), (0, 0), (0, 0)), mode='constant')
@@ -141,7 +143,8 @@ class BrainMultiCoilWhitened(Dataset):
                   'gt_image': torch.from_numpy(gt_mvue.astype(np.float32)),
                   'acs_norm_factor': acs_norm_factor,
                   'scan_idx': scan_idx,
-                  'slice_idx': slice_idx}
+                  'slice_idx': slice_idx,
+                  'filename': self.file_list[scan_idx][:-4]}
         
         if self.cache_data:
             self.dataset_cache[idx] = copy.deepcopy(sample)
