@@ -16,9 +16,9 @@ remove_end: 2
 cache_data: true
 
 # Dataloader attributes
-num_train: 500
-num_val:   100
-num_test:  200
+num_train: 200
+num_val:   50
+num_test:  100
 
 train_batch_size: 10 
 val_batch_size:   10

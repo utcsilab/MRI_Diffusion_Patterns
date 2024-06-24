@@ -73,7 +73,7 @@ def eval(cfg: DictConfig) -> None:
         test_split = DictDataset(data_fname=cfg.data.test_file, log=log)
     else:
         file_list = load_if_pickled(cfg.data.test_file_list)
-        test_dataset = dataset_class(data_dir=cfg.data.test_data_dir,
+        test_dataset = dataset_class(data_dir=cfg.data.data_dir,
                                      file_list=file_list,
                                      image_size=cfg.data.image_size,
                                      acs_size=cfg.data.acs_size,
@@ -158,7 +158,7 @@ def eval(cfg: DictConfig) -> None:
             
             y = P * FSx
             x_hat_mvue = get_mvue_torch(y, S)
-            x_init = x_hat_mvue + cfg.recon.sigma_max * torch.randn_like(x_init)
+            x_init = x_hat_mvue + cfg.recon.sigma_max * torch.randn_like(x_hat_mvue)
             
             x_hat = recon_alg(x_init=x_init, FSx=FSx, P=P, S=S)
             

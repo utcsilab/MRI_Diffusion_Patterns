@@ -32,7 +32,7 @@ class BrainMultiCoilWhitened(Dataset):
         Triplets of (coil_sens, ksp, ground_truth) should be stored with the same filename in their 
             respective subdirectories.
         """
-        super.__init__()
+        super().__init__()
         
         self.data_dir = data_dir
         self.file_list = file_list

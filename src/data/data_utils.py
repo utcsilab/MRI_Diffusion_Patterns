@@ -37,8 +37,8 @@ def split_dataset(train_set, test_set, num_train, num_val, num_test, seed, log):
     tr_indices = list(range(len(train_set))) if train_set is not None else []
     te_indices = list(range(len(test_set)))
 
-    log.info(f"Train Dataset Size: {len(train_set)}")
-    log.info(f"Test Dataset Size: {len(test_set)}")
+    log.info(f"Train Dataset Size: {len(tr_indices)}")
+    log.info(f"Test Dataset Size: {len(te_indices)}")
 
     random_state = np.random.get_state()
     np.random.seed(seed)
