@@ -1,7 +1,7 @@
 defaults:
-  - data: T2_3T_brains_dict
+  - data: T2_whitened_brains
   - pattern: 3D_Poisson
-  - recon: DPS_brains
+  - recon: DPS_brains_whitened
 
 gpu: 0
 

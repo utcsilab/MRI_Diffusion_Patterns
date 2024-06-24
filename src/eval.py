@@ -80,7 +80,7 @@ def eval(cfg: DictConfig) -> None:
                                      pad_coils=cfg.data.test_batch_size > 1,
                                      remove_start=cfg.data.remove_start,
                                      remove_end=cfg.data.remove_end,
-                                     cache_data=cfg.data.cache_data,
+                                     cache_data=False,
                                      log=log)
 
         split_dict = split_dataset(train_set=None,

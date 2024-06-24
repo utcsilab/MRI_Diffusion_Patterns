@@ -1,0 +1,15 @@
+net_path: "/raid/sr39533/pattern_exp_files/00027-fastMRI_T2_320_brains_whitened-uncond-ddpmpp-edm-gpus3-batch54-fp32-ddpmpp_T2-320-white_64/network-snapshot-010000.pkl"
+
+hard_consistent_output: false
+
+alg_type: "dps"
+
+#default sampling parameters from EDM
+defaults:
+  - edm_defaults
+
+S_churn: 0.0
+
+kwargs:
+  likelihood_step_size: 10.0
+  normalize_grad: true
