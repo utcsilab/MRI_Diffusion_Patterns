@@ -1,6 +1,6 @@
 from src.recon_algorithms.edm import dnnlib
 from src.utils.cg_utils import ZConjGrad, get_Aop_fun, get_cg_rhs
-from src.utils.helpers import normalize, unnormalize, get_min_max, MRI_forward_nomask, get_mvue_torch, complex_to_real, real_to_complex, hard_consistency
+from src.utils.helpers import MRI_forward_nomask, complex_to_real, real_to_complex, hard_consistency
 
 import torch
 import numpy as np
@@ -78,11 +78,6 @@ def MRI_diffusion_sampling(net, x_init, t_steps, FSx, P, S, alg_type, hard_consi
     if net.label_dim:
         class_labels = torch.zeros((x_init.shape[0], net.label_dim), device=device) #[N, label_dim]
     
-    with torch.no_grad():
-        y = P * FSx #[N, C, H, W] complex, the undersampled multi-coil k-space measurements
-        x_hat_mvue = get_mvue_torch(y, S)
-        norm_mins, norm_maxes = get_min_max(x_hat_mvue)
-    
     #(1) Sampling Loop
     x_next = x_init
     for i, (t_cur, t_next) in enumerate(zip(t_steps[:-1], t_steps[1:])): # 0, ..., T-1
@@ -99,13 +94,12 @@ def MRI_diffusion_sampling(net, x_init, t_steps, FSx, P, S, alg_type, hard_consi
         x_denoised = net(x_t_hat, t_hat, class_labels)
         if alg_type == "shallow_dps":
             x_denoised.requires_grad_()
-        x_denoised_unscaled = unnormalize(x_denoised, norm_mins, norm_maxes)
         
         # (1c) grab the negative score term d_cur
         if "dps" in alg_type:
             d_cur = (x_t_hat - x_denoised) / t_hat
         elif alg_type == "cg":
-            x_cg_init = real_to_complex(x_denoised_unscaled) #[N, 2, H, W] real --> [N, H, W] complex
+            x_cg_init = real_to_complex(x_denoised) #[N, 2, H, W] real --> [N, H, W] complex
             Aop_fun = get_Aop_fun(P, S)
             cg_rhs = get_cg_rhs(P, S, FSx, kwargs['cg_lambda'], x_cg_init)
             
@@ -113,20 +107,18 @@ def MRI_diffusion_sampling(net, x_init, t_steps, FSx, P, S, alg_type, hard_consi
             x_cg = CG_Runner.forward(x_cg_init)
             
             x_cg_real = complex_to_real(x_cg)
-            x_cg_real_scaled = normalize(x_cg_real, norm_mins, norm_maxes)
             
-            d_cur = (x_t_hat - x_cg_real_scaled) / t_hat
+            d_cur = (x_t_hat - x_cg_real) / t_hat
         elif alg_type == "repaint":
-            x_repaint = hard_consistency(x=x_denoised_unscaled, P=P, S=S, FSx=FSx)
-            x_repaint_scaled = normalize(x_repaint, norm_mins, norm_maxes)
+            x_repaint = hard_consistency(x=x_denoised, P=P, S=S, FSx=FSx)
             
-            d_cur = (x_t_hat - x_repaint_scaled) / t_hat
+            d_cur = (x_t_hat - x_repaint) / t_hat
         else:
             raise NotImplementedError("Given alg_type not supported!")
         
         # (1d) grab the likelihood score
         if "dps" in alg_type:
-            residual = P * (FS(x_denoised_unscaled) - FSx)
+            residual = P * (FS(x_denoised) - FSx)
             sse_per_samp = torch.sum(torch.square(torch.abs(residual)), dim=(1,2,3), keepdim=True) #[N, 1, 1, 1]
             sse = torch.sum(sse_per_samp)
             
@@ -146,9 +138,8 @@ def MRI_diffusion_sampling(net, x_init, t_steps, FSx, P, S, alg_type, hard_consi
         x_next = x_t_hat + (t_next - t_hat) * d_cur - likelihood_score
         x_next = x_next.detach()
     
-    x_hat = unnormalize(x_next, norm_mins, norm_maxes)
+    x_hat = x_next
     if hard_consistent_output:
         x_hat = hard_consistency(x=x_hat, P=P, S=S, FSx=FSx) 
     
     return x_hat
-
