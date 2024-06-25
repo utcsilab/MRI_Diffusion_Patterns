@@ -67,7 +67,7 @@ def get_nrmse(x_hat, x):
     
     nrmse_vals = error_norm / gt_norm #[N]
     
-    return nrmse_vals.detach().cpu().numpy()
+    return nrmse_vals.detach().cpu().numpy().astype(np.float64)
 
 @torch.no_grad()
 def get_all_metrics(x_hat, x):
