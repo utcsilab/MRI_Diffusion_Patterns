@@ -205,13 +205,14 @@ def eval(cfg: DictConfig) -> None:
                 metric_dict = metrics.get_dict("test")[f'iter_{0}']
                 psnr_array = metric_dict['psnr'][-len(x_idx):]
                 ssim_array = metric_dict['ssim'][-len(x_idx):]
-                sample_metric_dicts = [{"Slice": idx, "PSNR": psnr_array[i], "SSIM": ssim_array[i]} for i, idx in enumerate(x_idx)]
+                nrmse_array = metric_dict['nrmse'][-len(x_idx):]
+                sample_metric_dicts = [{"Slice": idx, "PSNR": psnr_array[i], "SSIM": ssim_array[i], "NRMSE": nrmse_array[i]} for i, idx in enumerate(x_idx)]
                 metric_path = os.path.join(recovered_path, "sample_metrics.json")
                 with open(metric_path, 'a') as f:
                     json.dump(sample_metric_dicts, f, indent=4)
                     
-                avg_metric_dict = [{"MEAN PSNR": np.mean(metric_dict['psnr']), "MEAN SSIM": np.mean(metric_dict['ssim']),
-                                    "STD PSNR": np.std(metric_dict['psnr']), "STD SSIM": np.std(metric_dict['ssim'])}]
+                avg_metric_dict = [{"MEAN PSNR": np.mean(metric_dict['psnr']), "MEAN SSIM": np.mean(metric_dict['ssim']), "MEAN NRMSE": np.mean(metric_dict['nrmse']),
+                                    "STD PSNR": np.std(metric_dict['psnr']), "STD SSIM": np.std(metric_dict['ssim']), "STD NRMSE": np.std(metric_dict['nrmse'])}]
                 avg_metric_path = os.path.join(recovered_path, "avg_sample_metrics.json")
                 with open(avg_metric_path, 'w') as f:
                     json.dump(avg_metric_dict, f, indent=4)

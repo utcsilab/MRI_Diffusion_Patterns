@@ -51,6 +51,25 @@ def get_psnr(x_hat, x):
     return np.array(psnr_vals)
 
 @torch.no_grad()
+def get_nrmse(x_hat, x):
+    """
+    Calculates NRMSE(x_hat, x) over individual samples in a batch.
+    
+    Args:
+        x_hat (torch.Tensor): Predicted images. Shape (N, 2, H, W).
+        x (torch.Tensor): Ground truth image. Shape (N, 2, H, W).
+    
+    Returns:
+        np.array: NRMSE values for each image in the batch. Shape [N].
+    """
+    error_norm = torch.sqrt(torch.mean(torch.square(x_hat - x), dim=(1, 2, 3)))
+    gt_norm = torch.sqrt(torch.mean(torch.square(x), dim=(1, 2, 3)))
+    
+    nrmse_vals = error_norm / gt_norm #[N]
+    
+    return nrmse_vals.detach().cpu().numpy()
+
+@torch.no_grad()
 def get_all_metrics(x_hat, x):
     """
     Calculates Metric(x_hat, x) over individual samples in a batch.
@@ -202,6 +221,7 @@ class Metrics:
             x_hat_ = x_hat.clone()
             x_ = x.clone()
         iter_metrics = get_all_metrics(x_hat_, x_) #calc the metrics
+        iter_metrics['nrmse'] = get_nrmse(x_hat, x) #add nrmse to the metrics
 
         self.__init_iter_dict(cur_dict, iter_num) #check that the iter dict is initialized
 
