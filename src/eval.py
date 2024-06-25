@@ -186,7 +186,7 @@ def eval(cfg: DictConfig) -> None:
                 
                 #Save reconstructions at every iteration
                 x_idx = [f"{fname}_slice_{slice_id}" for fname, slice_id in zip(filename, slice_idx)]
-                x_resid_idx = [f"{idx}_resid" for idx in x_idx]
+                # x_resid_idx = [f"{idx}_resid" for idx in x_idx]
                 x_resid_stretched_idx = [f"{idx}_resid_stretched" for idx in x_idx]
                 
                 x_resid = x_hat - x
@@ -194,7 +194,7 @@ def eval(cfg: DictConfig) -> None:
                 
                 recovered_path = os.path.join(log_dir, "images",  "test_recon", f"epoch_{0}")
                 save_images(x_hat, x_idx, recovered_path)
-                save_images(x_resid, x_resid_idx, recovered_path)
+                # save_images(x_resid, x_resid_idx, recovered_path)
                 save_images(x_resid_stretched, x_resid_stretched_idx, recovered_path)
                 
                 #save ground truth images at every test iteration

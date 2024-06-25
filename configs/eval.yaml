@@ -7,6 +7,6 @@ gpu: 0
 
 save_dir: '/csiNAS2/slow/sriram/MRI_refactor'
 
-seed: 2023
+seed: 2024
 
 exp_name: "Brain_DPS_Eval"
