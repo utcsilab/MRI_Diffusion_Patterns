@@ -1,13 +1,13 @@
 defaults:
-  - data: T2_3T_brains_dict
+  - data: T2_whitened_brains
   - pattern: 3D_DOGG
-  - recon: DPS_brains
+  - recon: DPS_brains_whitened
   - training: 3D_DOGG
 
 gpu: 0
 
-save_dir: '/csiNAS2/slow/sriram/MRI_refactor'
+save_dir: '/raid/sr39533/DOGG_results'
 
-seed: 2023
+seed: 2024
 
 exp_name: "Brain_DPS"

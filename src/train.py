@@ -16,16 +16,16 @@ import torch
 from torch.utils.data import DataLoader
 import torch.utils.tensorboard as tb
 
-from src.utils.experiment_utils import set_all_seeds, make_dirs, save_images
+from src.utils.experiment_utils import set_all_seeds, make_dirs, save_images, load_if_pickled, save_to_pickle
 from src.sampling_patterns.learned3d import Learned3d
 from src.recon_algorithms.diffusion_utils import load_net
 from src.recon_algorithms.diffusion import DiffusionMRIReconstruction
 from src.data.data_utils import split_dataset
-from src.data.fastMRI import BrainMultiCoil, KneesMultiCoil
+from src.data.fastMRI_whitened import BrainMultiCoilWhitened
 from src.data.dict_dataset import DictDataset
 from src.utils.metric_utils import Metrics
 from src.utils.training_utils import make_noisy_sample, single_step_posterior_estimate, calculate_loss
-from src.utils.helpers import get_mvue_torch, get_min_max, normalize
+from src.utils.helpers import get_mvue_torch
 
 log = logging.getLogger(__name__)
 
@@ -58,10 +58,8 @@ def train(cfg: DictConfig) -> None:
                                      tau=cfg.pattern.tau)
     
     # (2) Setup datasets
-    if cfg.data.dataset == "BrainMultiCoil":
-        dataset_class = BrainMultiCoil
-    elif cfg.data.dataset == "KneesMultiCoil":
-        dataset_class = KneesMultiCoil
+    if cfg.data.dataset == "BrainMultiCoilWhitened":
+        dataset_class = BrainMultiCoilWhitened
     elif cfg.data.dataset == "DictDataset":
         dataset_class = DictDataset
     else:
@@ -77,33 +75,32 @@ def train(cfg: DictConfig) -> None:
         if cfg.data.transfer_train_to_gpu:
             train_split.transfer_to_device(device=device)
     else:
-        train_dataset = dataset_class(input_dir=cfg.data.train_input_dir,
-                                    maps_dir=cfg.data.train_maps_dir,
-                                    file_pattern=cfg.data.file_pattern,
-                                    ignore_slice_list=cfg.data.ignore_slice_list,
-                                    image_size=cfg.data.image_size,
-                                    num_slices_path=cfg.data.train_num_slices_path,
-                                    load_slice_info=cfg.data.load_slice_info,
-                                    save_slice_info=cfg.data.save_slice_info,
-                                    kspace_pad=cfg.data.kspace_pad,
-                                    remove_start=cfg.data.remove_start,
-                                    remove_end=cfg.data.remove_end,
-                                    cache_data=cfg.data.cache_data,
-                                    log=log)
+        train_file_list = load_if_pickled(cfg.data.train_file_list)
+        test_file_list = load_if_pickled(cfg.data.test_file_list)
         
-        test_dataset = dataset_class(input_dir=cfg.data.test_input_dir,
-                                    maps_dir=cfg.data.test_maps_dir,
-                                    file_pattern=cfg.data.file_pattern,
-                                    ignore_slice_list=cfg.data.ignore_slice_list,
-                                    image_size=cfg.data.image_size,
-                                    num_slices_path=cfg.data.test_num_slices_path,
-                                    load_slice_info=cfg.data.load_slice_info,
-                                    save_slice_info=cfg.data.save_slice_info,
-                                    kspace_pad=cfg.data.kspace_pad,
-                                    remove_start=cfg.data.remove_start,
-                                    remove_end=cfg.data.remove_end,
-                                    cache_data=cfg.data.cache_data,
-                                    log=log)
+        #NOTE we want to test an the first 20 volumes for brains
+        if cfg.data.dataset == "BrainMultiCoilWhitened":
+            test_file_list = test_file_list[:20]
+            
+        train_dataset = dataset_class(data_dir=cfg.data.data_dir,
+                                     file_list=train_file_list,
+                                     image_size=cfg.data.image_size,
+                                     acs_size=cfg.data.acs_size,
+                                     pad_coils=cfg.data.train_batch_size > 1,
+                                     remove_start=cfg.data.remove_start,
+                                     remove_end=cfg.data.remove_end,
+                                     cache_data=cfg.data.cache_data,
+                                     log=log)
+        
+        test_dataset = dataset_class(data_dir=cfg.data.data_dir,
+                                     file_list=test_file_list,
+                                     image_size=cfg.data.image_size,
+                                     acs_size=cfg.data.acs_size,
+                                     pad_coils=cfg.data.test_batch_size > 1,
+                                     remove_start=cfg.data.remove_start,
+                                     remove_end=cfg.data.remove_end,
+                                     cache_data=False,
+                                     log=log)
 
         split_dict = split_dataset(train_set=train_dataset,
                                 test_set=test_dataset,
@@ -175,7 +172,7 @@ def train(cfg: DictConfig) -> None:
     
     log_dir = os.path.join(cfg.save_dir, cfg.exp_name)
     log.info(f"Log directory: {log_dir}")
-    make_dirs(log_dir, ["images", "tensorboard"])
+    make_dirs(log_dir, ["images", "tensorboard", "results"])
     
     with open(os.path.join(log_dir, "config.yaml"), "w") as f:
         OmegaConf.save(cfg, f)
@@ -211,14 +208,14 @@ def train(cfg: DictConfig) -> None:
             for i, (item, idx) in tqdm(enumerate(train_loader), desc="Training", unit=" batch"):
                 # (a) grab variables and move to gpu
                 FSx, S, x = item['ksp'].to(device), item['s_maps'].to(device), item['gt_image'].to(device)
-                scan_idx, slice_idx = item['scan_idx'].tolist(), item['slice_idx'].tolist()
+                acs_norm_factor, filename, slice_idx = item['acs_norm_factor'], item['filename'], item['slice_idx']
                 
                 # (b) grab pattern, make noisy sample, and estimate posterior mean
                 P = sampling_pattern.sample_mask(n=x.shape[0])
                 
-                x_t, sigma_t = make_noisy_sample(x=x, sigma_t=None, normalize_input=True)
+                x_t, sigma_t = make_noisy_sample(x=x, sigma_t=None)
                 
-                x_hat, x_hat_unconditional, likelihood_score, x_hat_0 = single_step_posterior_estimate(net=net, x_t=x_t, sigma_t=sigma_t, FSx=FSx, P=P, S=S, 
+                x_hat, x_hat_unconditional = single_step_posterior_estimate(net=net, x_t=x_t, sigma_t=sigma_t, FSx=FSx, P=P, S=S, 
                                                 likelihood_step_size=cfg.training.likelihood_step_size)
                 
                 train_loss = calculate_loss(x_hat=x_hat, x=x, loss_type=cfg.training.loss_type)
@@ -273,8 +270,8 @@ def train(cfg: DictConfig) -> None:
                         save_images(P_prob, [f"Prob_{epoch}"], pattern_path)
                         
                         #Save reconstructions at every iteration
-                        x_idx = [f"{scan_id}_{slice_id}" for scan_id, slice_id in zip(scan_idx, slice_idx)]
-                        x_resid_idx = [f"{idx}_resid" for idx in x_idx]
+                        x_idx = [f"{fname}_slice_{slice_id}" for fname, slice_id in zip(filename, slice_idx)]
+                        # x_resid_idx = [f"{idx}_resid" for idx in x_idx]
                         x_resid_stretched_idx = [f"{idx}_resid_stretched" for idx in x_idx]
                         
                         x_resid = x_hat - x
@@ -282,7 +279,7 @@ def train(cfg: DictConfig) -> None:
                         
                         recovered_path = os.path.join(log_dir, "images",  "train_recon", f"epoch_{epoch}")
                         save_images(x_hat, x_idx, recovered_path)
-                        save_images(x_resid, x_resid_idx, recovered_path)
+                        # save_images(x_resid, x_resid_idx, recovered_path)
                         save_images(x_resid_stretched, x_resid_stretched_idx, recovered_path)
                         
                         #Save the ground truth images only once
@@ -323,16 +320,14 @@ def train(cfg: DictConfig) -> None:
         for i, (item, idx) in tqdm(enumerate(test_loader), desc="Testing", unit=" batch"):
             # (a) grab variables and move to gpu
             FSx, S, x = item['ksp'].to(device), item['s_maps'].to(device), item['gt_image'].to(device)
-            scan_idx, slice_idx = item['scan_idx'].tolist(), item['slice_idx'].tolist()
+            acs_norm_factor, filename, slice_idx = item['acs_norm_factor'], item['filename'], item['slice_idx']
             
             # (b) grab pattern, make initial noisy sample, and sample from posterior
             P = sampling_pattern.sample_mask(n=x.shape[0]).detach()
             
             y = P * FSx
             x_hat_mvue = get_mvue_torch(y, S)
-            norm_mins, norm_maxes = get_min_max(x_hat_mvue)
-            x_init = normalize(x_hat_mvue, norm_mins, norm_maxes)
-            x_init = x_init + cfg.recon.sigma_max * torch.randn_like(x_init)
+            x_init = x_hat_mvue + cfg.recon.sigma_max * torch.randn_like(x_hat_mvue)
             
             x_hat = recon_alg(x_init=x_init, FSx=FSx, P=P, S=S)
             
@@ -354,17 +349,16 @@ def train(cfg: DictConfig) -> None:
                 # (ii) save images
                 if i == 0:
                     #Save sampling patterns on first batch
-                    P = sampling_pattern.sample_mask(n=1).detach().cpu() #[1,1,H,W]
-                    P_prob = sampling_pattern.probabilistic_mask().detach().cpu() #[1,1,H,W]
+                    P_prob = sampling_pattern.probabilistic_mask().detach().cpu()
                     
                     pattern_path = os.path.join(log_dir, "images", "learned_masks")
                     
-                    save_images(P, [f"Sample_{epoch}"], pattern_path)
+                    save_images(P.detach().cpu()[0].unsqueeze(0), [f"Sample_{epoch}"], pattern_path)
                     save_images(P_prob, [f"Prob_{epoch}"], pattern_path)
                 
                 #Save reconstructions at every iteration
-                x_idx = [f"{scan_id}_{slice_id}" for scan_id, slice_id in zip(scan_idx, slice_idx)]
-                x_resid_idx = [f"{idx}_resid" for idx in x_idx]
+                x_idx = [f"{fname}_slice_{slice_id}" for fname, slice_id in zip(filename, slice_idx)]
+                # x_resid_idx = [f"{idx}_resid" for idx in x_idx]
                 x_resid_stretched_idx = [f"{idx}_resid_stretched" for idx in x_idx]
                 
                 x_resid = x_hat - x
@@ -372,7 +366,7 @@ def train(cfg: DictConfig) -> None:
                 
                 recovered_path = os.path.join(log_dir, "images",  "test_recon", f"epoch_{epoch}")
                 save_images(x_hat, x_idx, recovered_path)
-                save_images(x_resid, x_resid_idx, recovered_path)
+                # save_images(x_resid, x_resid_idx, recovered_path)
                 save_images(x_resid_stretched, x_resid_stretched_idx, recovered_path)
                 
                 #save ground truth images at every test iteration
@@ -383,16 +377,32 @@ def train(cfg: DictConfig) -> None:
                 metric_dict = metrics.get_dict("test")[f'iter_{epoch}']
                 psnr_array = metric_dict['psnr'][-len(x_idx):]
                 ssim_array = metric_dict['ssim'][-len(x_idx):]
-                sample_metric_dicts = [{"Slice": idx, "PSNR": psnr_array[i], "SSIM": ssim_array[i]} for i, idx in enumerate(x_idx)]
+                nrmse_array = metric_dict['nrmse'][-len(x_idx):]
+                sample_metric_dicts = [{"Slice": idx, "PSNR": psnr_array[i], "SSIM": ssim_array[i], "NRMSE": nrmse_array[i]} for i, idx in enumerate(x_idx)]
                 metric_path = os.path.join(recovered_path, "sample_metrics.json")
                 with open(metric_path, 'a') as f:
                     json.dump(sample_metric_dicts, f, indent=4)
                     
-                avg_metric_dict = [{"MEAN PSNR": np.mean(metric_dict['psnr']), "MEAN SSIM": np.mean(metric_dict['ssim']),
-                                    "STD PSNR": np.std(metric_dict['psnr']), "STD SSIM": np.std(metric_dict['ssim'])}]
+                avg_metric_dict = [{"MEAN PSNR": np.mean(metric_dict['psnr']), "MEAN SSIM": np.mean(metric_dict['ssim']), "MEAN NRMSE": np.mean(metric_dict['nrmse']),
+                                    "STD PSNR": np.std(metric_dict['psnr']), "STD SSIM": np.std(metric_dict['ssim']), "STD NRMSE": np.std(metric_dict['nrmse'])}]
                 avg_metric_path = os.path.join(recovered_path, "avg_sample_metrics.json")
                 with open(avg_metric_path, 'w') as f:
                     json.dump(avg_metric_dict, f, indent=4)
+                
+                # (iv) save the raw results as dictionaries
+                results_path = os.path.join(log_dir, "results")
+                
+                x_hat_complex = torch.complex(x_hat[:,0], x_hat[:,1]).detach().cpu().numpy() #[N, H, W] complex
+                x_complex = torch.complex(x[:,0], x[:,1]).detach().cpu().numpy()
+                P = P.detach().cpu().numpy() #[N, 1, H, W]
+                
+                for i, idx in enumerate(x_idx):
+                    results_dict = {"recon": x_hat_complex[i], 
+                                    "gt": x_complex[i], 
+                                    "mask": P[i, 0], 
+                                    "acs_norm_factor": acs_norm_factor[i].item()} 
+                    write_path = os.path.join(results_path, f"{idx}.pkl")
+                    save_to_pickle(results_dict, write_path)
                     
         # (f) log metrics for the entire epoch
         metrics.aggregate_iter_metrics(iter_num=epoch, iter_type="test")

@@ -1,6 +1,6 @@
 import torch
 from torchmetrics.functional import structural_similarity_index_measure
-from src.utils.helpers import normalize, unnormalize, get_min_max, MRI_forward_nomask, get_mvue_torch
+from src.utils.helpers import MRI_forward_nomask
 
 def cosine_similarity_loss(x_hat, x):
     x_hat_norm = torch.norm(x_hat, p=2, dim=(1,2,3))
@@ -14,8 +14,8 @@ def calculate_loss(x_hat, x, loss_type="l2"):
     Calculates loss between a reconstrution x_hat and true x.
     
     Args:
-        x_hat (torch.Tensor): The unnormalized reconstruction. [N, 2, H, W] real-valued.
-        x (torch.Tensor): The unnormalized true image. [N, 2, H, W] real-valued
+        x_hat (torch.Tensor): The reconstruction. [N, 2, H, W] real-valued.
+        x (torch.Tensor): The true image. [N, 2, H, W] real-valued
         loss_type (str): The type of loss to calculate. Should be in ['l2', 'l1', 'ssim'].
     
     Returns:
@@ -49,7 +49,7 @@ def calculate_loss(x_hat, x, loss_type="l2"):
     
     return loss
 
-def make_noisy_sample(x, sigma_t=None, normalize_input=True):
+def make_noisy_sample(x, sigma_t=None):
     """
     Adds random Gaussian noise to an input.
 
@@ -57,7 +57,6 @@ def make_noisy_sample(x, sigma_t=None, normalize_input=True):
         x (torch.Tensor): The clean image. [N, 2, H, W] real-valued.
         sigma_t (torch.Tensor): The noise standard deviation at time t. [N, 1, 1, 1] real-valued.
                                 Default is None, in which case it is randomly sampled in (0, 1).
-        normalize_input (bool): Whether to normalize the input before adding noise. Default is True.
     
     Returns: 
         x_t (torch.Tensor): The noised sample. [N, 2, H, W] real-valued
@@ -67,11 +66,7 @@ def make_noisy_sample(x, sigma_t=None, normalize_input=True):
         sigma_t = torch.rand([x.shape[0], 1, 1, 1], device=x.device)
     n = torch.randn_like(x) * sigma_t
     
-    x_scaled = x
-    if normalize_input:
-        x_mins, x_maxes = get_min_max(x)
-        x_scaled = normalize(x, x_mins, x_maxes)
-    x_t = x_scaled + n
+    x_t = x + n
     
     return x_t, sigma_t
 
@@ -96,9 +91,9 @@ def single_step_posterior_estimate(net, x_t, sigma_t, FSx, P, S, likelihood_step
     
     Returns:
         x_hat (torch.Tensor): Single-step posterior reconstruction E[x_0 | x_t, y].
-                                [N, 2, H, W] real-valued (unnormalized).
-        x_hat_0_unscaled (torch.Tensor): The denoised estimate E[x_0 | x_t].
-                                            [N, 2, H, W] real-valued (unnormalized).                        
+                                [N, 2, H, W] real-valued.
+        x_hat_0 (torch.Tensor): The denoised estimate E[x_0 | x_t].
+                                 [N, 2, H, W] real-valued.                        
     """
     #(0) Setup
     device = x_t.device
@@ -107,23 +102,16 @@ def single_step_posterior_estimate(net, x_t, sigma_t, FSx, P, S, likelihood_step
     if net.label_dim:
         class_labels = torch.zeros((x_t.shape[0], net.label_dim), device=device) #[N, label_dim]
     
-    with torch.no_grad():
-        # y = P * FSx #[N, C, H, W] complex, the undersampled multi-coil k-space measurements
-        y = FSx
-        x_hat_mvue = get_mvue_torch(y, S)
-        norm_mins, norm_maxes = get_min_max(x_hat_mvue)
-    
-    #(1) Get the unconditional denoised estimate and unscale properly
+    #(1) Get the unconditional denoised estimate
     x_hat_0 = net(x_t, sigma_t, class_labels)
     x_hat_0.requires_grad_()
-    x_hat_0_unscaled = unnormalize(x_hat_0, norm_mins, norm_maxes)
     
     #(2) Calculate the likelihood gradient
-    residual = P * (MRI_forward_nomask(x_hat_0_unscaled, S) - FSx)
+    residual = P * (MRI_forward_nomask(x_hat_0, S) - FSx)
     sse = torch.sum(torch.square(torch.abs(residual)))
     likelihood_score = torch.autograd.grad(outputs=sse, inputs=x_hat_0, create_graph=True)[0] #create a graph to calculate loss gradients
     
-    #(3) Create the final posterior mean prediction and unnormalize properly
+    #(3) Create the final posterior mean prediction
     x_hat = x_hat_0 - likelihood_step_size * likelihood_score
     
-    return unnormalize(x_hat, norm_mins, norm_maxes), x_hat_0_unscaled, likelihood_score, x_hat_0
+    return x_hat, x_hat_0
