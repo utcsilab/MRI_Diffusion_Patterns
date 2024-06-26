@@ -8,7 +8,7 @@ include_conjugates: false
 
 val_every: 100000 #Don't validate
 
-checkpoint_every: 20 #save checkpoints every n epochs
+checkpoint_every: 5 #save checkpoints every n epochs
 
 loss_type: "l2"
 
