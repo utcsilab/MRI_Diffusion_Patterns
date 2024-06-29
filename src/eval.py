@@ -47,12 +47,12 @@ def eval(cfg: DictConfig) -> None:
         sampling_pattern = Fixed2dPattern(num_acs_lines=cfg.pattern.num_acs_lines,
                                          orientation=cfg.pattern.orientation,
                                          R=cfg.pattern.R,
-                                         length=cfg.data.image_size,
+                                         image_size=cfg.data.image_size,
                                          device=device)
     elif cfg.pattern.sample_pattern == 'Fixed3dPattern':
         sampling_pattern = Fixed3dPattern(num_acs_lines=cfg.pattern.num_acs_lines,
                                           R=cfg.pattern.R,
-                                          length=cfg.data.image_size,
+                                          image_size=cfg.data.image_size,
                                           device=device,
                                           cut_corners=cfg.pattern.cut_corners,
                                           seed=cfg.seed)

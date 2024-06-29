@@ -6,7 +6,7 @@ data_dir: "/raid/sr39533/whitened_data_new"
 train_file_list: "/raid/sr39533/pattern_exp_files/fastMRI_T2_320_whitened_val_fnames.pkl"
 test_file_list: "/raid/sr39533/pattern_exp_files/fastMRI_T2_320_whitened_test_fnames.pkl"
 
-image_size: 320
+image_size: [320, 320]
 
 acs_size: 20
 

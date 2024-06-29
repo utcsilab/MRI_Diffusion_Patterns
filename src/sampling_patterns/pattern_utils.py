@@ -2,23 +2,26 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-def get_xy_radius_grid(length):
+def get_xy_radius_grid(H, W):
     """
-    Generate a grid of x and y coordinates for a square grid of radius length.
+    Generate a grid of x and y coordinates for a rectangular grid of size H x W.
     Coordinates are centered at (0, 0) and normalized to the range [-1, 1].
-    Also gives the radius of each point in the grid.
+    Also gives the radius of each point in the grid, which forms an ellipse.
     
     Args:
-        length (int): The radius of the grid.
+        H (int): Height of the grid.
+        W (int): Width of the grid.
     
     Returns:
         (torch.Tensor, torch.Tensor, torch.Tensor): The x and y coordinates of the grid, and the radius of each point.
     """
-    x = y = (torch.arange(length) - (length-1)/2) / ((length-1)/2) #[length]
-    grid_x, grid_y = torch.meshgrid(x, y, indexing='xy') #[length, length]
-    grid = torch.stack([grid_x, grid_y], dim=0) #[2, length, length]
-    radius_grid = torch.sqrt(torch.sum(torch.square(grid), dim=0)) #[length, length]
+    x = (torch.arange(W) - (W - 1) / 2) / ((W - 1) / 2)  # [W]
+    y = (torch.arange(H) - (H - 1) / 2) / ((H - 1) / 2)  # [H]
     
+    grid_x, grid_y = torch.meshgrid(x, y, indexing='xy')  # [W, H]
+    
+    radius_grid = torch.sqrt((grid_x ** 2) + (grid_y ** 2))  # [H, W]
+
     return grid_x, grid_y, radius_grid
 
 def normalize_probs(probs, mean):
@@ -126,16 +129,16 @@ def get_furthest_point_3d(query_point_inds, key_point_inds, grid_x, grid_y, incl
     Args:
         query_point_inds (array-like of ints): The indexes of the query points. Shape [m].
         key_point_inds (array-like of ints): The indexes of the key points. Shape [n].
-        grid_x (torch.Tensor): The x-coordinates of the grid. Shape [length, length].
-        grid_y (torch.Tensor): The y-coordinates of the grid. Shape [length, length].
+        grid_x (torch.Tensor): The x-coordinates of the grid. Shape [H, W].
+        grid_y (torch.Tensor): The y-coordinates of the grid. Shape [H, W].
         include_conjugate_keys (bool): Whether to include the conjugate version of the key points when calculating distances.
                                        If True, will consider a copy of each key point rotated 180 degrees about the origin. 
                                        Defaults to False. 
     Returns:
         int: The index of the furthest query point.
     """
-    xy_grid = torch.stack([grid_x, grid_y], dim=0)
-    xy_grid = torch.flatten(xy_grid, start_dim=1) #[2, length^2] grid of (x, y) points
+    xy_grid = torch.stack([grid_x, grid_y], dim=0) #[2, H, W] grid of (x, y) points
+    xy_grid = torch.flatten(xy_grid, start_dim=1) #[2, HW]
     
     query_xy = xy_grid[:, query_point_inds] #[2, |query_point_inds|] array of (x, y) coords of query points
     key_xy = xy_grid[:, key_point_inds] #[2, |key_point_inds|] array of (x, y) coords of key points
@@ -150,27 +153,28 @@ def get_furthest_point_3d(query_point_inds, key_point_inds, grid_x, grid_y, incl
     
     return out_idx
 
-def shape_mask_3d(length, flat_input, flat_input_idx, on_idx, off_idx):
+def shape_mask_3d(H, W, flat_input, flat_input_idx, on_idx, off_idx):
     """
     Shapes a given flat set of weights into a 3D mask.
     
     Args:
-        length (int): The length of the 3D mask.
+        H (int): The height of the 3D mask.
+        W (int): The width of the 3D mask.
         flat_input (torch.Tensor): The flat input weights. Shape [n, m] or [m].
         flat_input_idx (np.ndarray): The indexes of the input weights in the flattened final mask. Shape [m].
         on_idx (np.ndarray): Indexes of pattern entries to set to 1.
         off_idx (np.ndarray): Indexes of pattern entries to set to 0.
     
     Returns:
-        torch.Tensor: The shaped 3D mask. Shape [n, length, length] (n=1 if flat_input is 1d).
+        torch.Tensor: The shaped 3D mask. Shape [n, H, W] (n=1 if flat_input is 1d).
     """
     if flat_input.dim() == 1:
         flat_input = flat_input.unsqueeze(0)
     n = flat_input.shape[0]
     
-    flat_output = torch.zeros((n, length**2), device=flat_input.device, dtype=flat_input.dtype)
+    flat_output = torch.zeros((n, H * W), device=flat_input.device, dtype=flat_input.dtype)
     flat_output[:, flat_input_idx] = flat_input
     flat_output[:, off_idx] = 0.
     flat_output[:, on_idx] = 1.
     
-    return flat_output.view(n, length, length)
+    return flat_output.view(n, H, W)

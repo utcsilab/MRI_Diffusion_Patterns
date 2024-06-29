@@ -1,5 +1,4 @@
 import numpy as np
-import h5py
 import os
 from tqdm import tqdm
 import copy
@@ -14,7 +13,7 @@ class BrainMultiCoilWhitened(Dataset):
     def __init__(self, 
                  data_dir,
                  file_list,
-                 image_size=320,
+                 image_size=(320, 320),
                  acs_size = 20,
                  pad_coils=True,
                  remove_start=0,
@@ -63,7 +62,7 @@ class BrainMultiCoilWhitened(Dataset):
             
             H, W, N_coils, N_slices = np.load(os.path.join(self.ksp_dir, fname), mmap_mode='r+').shape
             
-            assert H == W == image_size, "Incorrect shape for volume: {}".format(fname)
+            assert (H, W) == image_size, "Incorrect shape for volume: {}".format(fname)
             assert N_slices > (remove_end + remove_start), "Not enough slices for volume: {}".format(fname)
             
             if N_coils > self.max_N_coils:
@@ -74,11 +73,13 @@ class BrainMultiCoilWhitened(Dataset):
         self.slice_mapper = np.cumsum(self.num_slices) - 1 #counts from 0
         
         #Make the acs mask
-        center_line_idx = np.arange((image_size - acs_size) // 2, (image_size + acs_size) // 2)
-        mask = np.zeros((image_size, image_size), dtype=bool)
-        mask[center_line_idx] = True
-        mask = mask * mask.transpose(1, 0)
-        self.acs_mask = mask #[H, W]
+        H, W = self.image_size
+        self.acs_mask = np.zeros((H, W), dtype=bool)
+        start_row = (H - acs_size) // 2
+        start_col = (W - acs_size) // 2
+        end_row = start_row + acs_size
+        end_col = start_col + acs_size
+        self.acs_mask[start_row:end_row, start_col:end_col] = True
         
         if self.cache_data:
             manager = Manager()

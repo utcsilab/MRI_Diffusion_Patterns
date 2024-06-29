@@ -50,7 +50,7 @@ def train(cfg: DictConfig) -> None:
     
     sampling_pattern = pattern_class(num_acs_lines=cfg.pattern.num_acs_lines,
                                      R=cfg.pattern.R,
-                                     length=cfg.data.image_size,
+                                     image_size=cfg.data.image_size,
                                      device=device,
                                      cut_corners=cfg.pattern.cut_corners,
                                      init_dist=cfg.pattern.init_dist,
@@ -132,7 +132,7 @@ def train(cfg: DictConfig) -> None:
     # NOTE right now this only works for 3D sampling patterns
     if cfg.training.num_iters == -1:
         updates_per_epoch = cfg.data.num_train // cfg.data.train_batch_size
-        cfg.training.num_iters = int(np.ceil(((cfg.data.image_size**2) / 
+        cfg.training.num_iters = int(np.ceil(((cfg.data.image_size[0] * cfg.data.image_size[1]) / 
                                     cfg.pattern.R - cfg.pattern.num_acs_lines**2) / updates_per_epoch))
         
         log.info(f"Setting epochs to {cfg.training.num_iters}")

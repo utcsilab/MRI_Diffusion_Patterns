@@ -9,14 +9,14 @@ from src.sampling_patterns.pattern_utils import (get_xy_radius_grid,
                                                  get_furthest_point_3d)
 
 class Learned3d:
-    def __init__(self, num_acs_lines, R, length, device, cut_corners, init_dist, sampler, tau=1.0):
+    def __init__(self, num_acs_lines, R, image_size, device, cut_corners, init_dist, sampler, tau=1.0):
         """
         A Learned 3D pattern.
         
         Args:
             num_acs_lines (int): Number of ACS lines to keep in the center.
             R (int): Acceleration factor.
-            length (int): Length of the 3D sampling pattern.
+            image_size (tuple of ints): Size of the images used with this pattern.
             device (torch.device): Device to store the mask on.
             cut_corners (bool): Whether to cut the corners of the 3D sampling pattern.
             init_dist (str): The distribution to sample the initial logits from. Options in [normal, uniform, random].
@@ -26,27 +26,33 @@ class Learned3d:
         """
         self.num_acs_lines = num_acs_lines
         self.R = R
-        self.length = length
+        self.image_size = image_size
         self.device = device
         self.cut_corners = cut_corners
         self.init_dist = init_dist
         self.sampler = sampler
         self.tau = tau
         
+        H, W = image_size
+        
         # Initialize the mask
         #(1) Set the location and number of the ACS lines
-        acs_idx = np.arange((length - num_acs_lines) // 2, (length + num_acs_lines) // 2)
-        flat_n_inds = np.arange(length**2).reshape(length, length)
+        flat_n_inds = np.arange(H * W).reshape(H, W)
         
-        self.always_on_idx = flat_n_inds[acs_idx[:, None], acs_idx].flatten() #fancy indexing grabs a square from center
+        start_row = (H - num_acs_lines) // 2
+        start_col = (W - num_acs_lines) // 2
+        end_row = start_row + num_acs_lines
+        end_col = start_col + num_acs_lines
+        
+        self.always_on_idx = flat_n_inds[start_row:end_row, start_col:end_col].flatten()
         
         #(2) Create the list of indexes to always keep off and on
         self.always_off_idx = np.empty(0, dtype=np.int64)
         if cut_corners:
-            _, _, radius_grid = get_xy_radius_grid(length)
+            _, _, radius_grid = get_xy_radius_grid(H, W)
             self.always_off_idx = flat_n_inds[radius_grid > 1].flatten()
             
-        self.insert_mask_idx = np.array([i for i in range(self.length**2) 
+        self.insert_mask_idx = np.array([i for i in range(H * W) 
                                         if (i not in self.always_on_idx) and (i not in self.always_off_idx)])
                 
         #(3) Initialize the weights
@@ -73,8 +79,10 @@ class Learned3d:
             n (int): Number of masks to sample.
             
         Returns:
-            torch.Tensor: Sampling mask. [n, 1, length, length]. 
+            torch.Tensor: Sampling mask. [n, 1, H, W]. 
         """
+        H, W = self.image_size
+        
         probs = torch.sigmoid(self.weights)
         normed_probs = normalize_probs(probs=probs, mean=self.sparsity_level)
         normed_probs = normed_probs.unsqueeze(0).repeat(n, 1) #[n, num_weights]
@@ -82,13 +90,13 @@ class Learned3d:
             flat_sample = bernouli_gumbel_sample(probs=normed_probs, tau=self.tau)
         elif self.sampler == 'straight_through':
             flat_sample = bernouli_straight_through_sample(probs=normed_probs)
-        sampled_mask = shape_mask_3d(length=self.length, 
+        sampled_mask = shape_mask_3d(H=H, W=W,
                                      flat_input=flat_sample, 
                                      flat_input_idx=self.insert_mask_idx, 
                                      on_idx=self.always_on_idx, 
-                                     off_idx=self.always_off_idx) #[n, length, length]
+                                     off_idx=self.always_off_idx) #[n, H, W]
         
-        return sampled_mask.unsqueeze(1) #[n, 1, length, length]
+        return sampled_mask.unsqueeze(1) #[n, 1, H, W]
     
     @torch.no_grad()
     def probabilistic_mask(self):
@@ -96,34 +104,19 @@ class Learned3d:
         Returns the probabilistic mask.
         
         Returns:
-            torch.Tensor: The probabilistic mask. [1, 1, length, length].
+            torch.Tensor: The probabilistic mask. [1, 1, H, W].
         """
+        H, W = self.image_size
+        
         probs = torch.sigmoid(self.weights)
         normed_probs = normalize_probs(probs=probs, mean=self.sparsity_level)
-        prob_mask = shape_mask_3d(length=self.length, 
+        prob_mask = shape_mask_3d(H=H, W=W, 
                                   flat_input=normed_probs, 
                                   flat_input_idx=self.insert_mask_idx, 
                                   on_idx=self.always_on_idx, 
-                                  off_idx=self.always_off_idx) #[1, length, length]
+                                  off_idx=self.always_off_idx) #[1, H, W]
         
-        return prob_mask.unsqueeze(0) #[1, 1, length, length]
-    
-    # @property
-    # def insert_mask_idx(self):
-    #     """
-    #     Returns the list of flattened 2d indexes to insert the flattened pattern weights.
-        
-    #     Returns:
-    #         np.ndarray: The indexes. [num_weights].
-    #     """
-    #     #Set up caching for faster future access
-    #     if (not hasattr(self, 'cache_insert_mask_idx')) or (self.on_len != len(self.always_on_idx)) or (self.off_len != len(self.always_off_idx)):
-    #         self.on_len = len(self.always_on_idx)
-    #         self.off_len = len(self.always_off_idx)
-    #         self.cache_insert_mask_idx = np.array([i for i in range(self.length**2) 
-    #                                                if (i not in self.always_on_idx) and (i not in self.always_off_idx)])
-        
-    #     return self.cache_insert_mask_idx
+        return prob_mask.unsqueeze(0) #[1, 1, H, W]
     
     @property
     def sparsity_level(self):
@@ -133,7 +126,9 @@ class Learned3d:
         Returns:
             float: The current desired sparsity level.
         """
-        total_on = self.length**2 / self.R
+        H, W = self.image_size
+        
+        total_on = (H * W) / self.R
         already_on = len(self.always_on_idx)
         
         return (total_on - already_on) / self.num_weights
@@ -165,7 +160,8 @@ class Learned3d:
             return True
         
         if not hasattr(self, 'grid_x'):
-            self.grid_x, self.grid_y, _ = get_xy_radius_grid(self.length)
+            H, W = self.image_size
+            self.grid_x, self.grid_y, _ = get_xy_radius_grid(H, W)
             self.grid_x = self.grid_x.to(device=self.device)
             self.grid_y = self.grid_y.to(device=self.device)
         
