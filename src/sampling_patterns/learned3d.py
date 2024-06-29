@@ -143,13 +143,15 @@ class Learned3d:
         """
         return len(self.insert_mask_idx)
     
-    def greedy_topk_step(self, k, include_conjugates=False):
+    def greedy_topk_step(self, k, P, include_conjugates=False):
         """
         Takes one step of greedy max-min neighbor optimization with a given k.
         Returns True if the desired acceleration is met, else returns False.
 
         Args:
             k (int, optional): Top-k parameter for greedy optimization. Defaults to 1.
+            P (torch.Tensor): The pattern that was used for this optimization step.
+                              Used to get the gradients for the weights. [N, 1, H, W]
             include_conjugates (bool, optional): Whether to include the conjugates of the existing points 
                                                      when considering nearest points. Defaults to False.
         
@@ -164,10 +166,15 @@ class Learned3d:
             self.grid_x, self.grid_y, _ = get_xy_radius_grid(H, W)
             self.grid_x = self.grid_x.to(device=self.device)
             self.grid_y = self.grid_y.to(device=self.device)
+            
+        #Grab the gradients of the weights
+        grad = torch.sum(P.grad, dim=(0, 1)) #[H, W] - sum over batch and channel dimensions
+        grad = grad.flatten() #[H*W] gradients of all points
+        grad = grad[self.insert_mask_idx] #Only keep the gradients at points we still have to select
         
         #Calculate the point that's (a) in the top-k negative gradients
         # and (b) furthest from the already selected points
-        top_k_inds = torch.topk(-self.weights.grad, k=k)[1].tolist() 
+        top_k_inds = torch.topk(-grad, k=k)[1].tolist() 
         selected_point_idx = get_furthest_point_3d(query_point_inds=self.insert_mask_idx[top_k_inds],
                                                    key_point_inds=self.always_on_idx,
                                                    grid_x=self.grid_x,

@@ -212,6 +212,8 @@ def train(cfg: DictConfig) -> None:
                 
                 # (b) grab pattern, make noisy sample, and estimate posterior mean
                 P = sampling_pattern.sample_mask(n=x.shape[0])
+                if cfg.training.optimizer == "greedy_topk":
+                    P.retain_grad()
                 
                 x_t, sigma_t = make_noisy_sample(x=x, sigma_t=None)
                 
@@ -230,7 +232,7 @@ def train(cfg: DictConfig) -> None:
                     total_updates = cfg.training.num_iters * updates_per_epoch
                     k = int(cfg.training.k * (i + epoch * updates_per_epoch) / total_updates) + 1
                     
-                    finished_flag = sampling_pattern.greedy_topk_step(k=k, 
+                    finished_flag = sampling_pattern.greedy_topk_step(k=k, P=P, 
                                                                       include_conjugates=cfg.training.include_conjugates)
                 
                 # (d) logging metrics and saving images for the current batch
