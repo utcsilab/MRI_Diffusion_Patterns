@@ -22,7 +22,7 @@ from src.sampling_patterns.fixed3d import Fixed3dPattern
 from src.recon_algorithms.diffusion_utils import load_net
 from src.recon_algorithms.diffusion import DiffusionMRIReconstruction
 from src.data.data_utils import split_dataset
-from src.data.fastMRI_whitened import BrainMultiCoilWhitened
+from src.data.fastMRI_whitened import BrainMultiCoilWhitened, KneeMultiCoilWhitened
 from src.data.dict_dataset import DictDataset
 from src.utils.metric_utils import Metrics
 from src.utils.helpers import get_mvue_torch
@@ -62,6 +62,8 @@ def eval(cfg: DictConfig) -> None:
     # (2) Setup datasets
     if cfg.data.dataset == "BrainMultiCoilWhitened":
         dataset_class = BrainMultiCoilWhitened
+    elif cfg.data.dataset == "KneeMultiCoilWhitened":
+        dataset_class = KneeMultiCoilWhitened
     elif cfg.data.dataset == "DictDataset":
         dataset_class = DictDataset
     else:

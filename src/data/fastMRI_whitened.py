@@ -151,4 +151,25 @@ class BrainMultiCoilWhitened(Dataset):
             self.dataset_cache[idx] = copy.deepcopy(sample)
         
         return sample, idx
-    
+
+class KneeMultiCoilWhitened(BrainMultiCoilWhitened):
+    def __init__(self, 
+                 data_dir,
+                 file_list,
+                 image_size=(320, 368),
+                 acs_size = 20,
+                 pad_coils=True,
+                 remove_start=10,
+                 remove_end=0,
+                 cache_data=False,
+                 log=None):
+        
+        super(KneeMultiCoilWhitened, self).__init__(data_dir=data_dir,
+                                                     file_list=file_list,
+                                                     image_size=image_size,
+                                                     acs_size=acs_size,
+                                                     pad_coils=pad_coils,
+                                                     remove_start=remove_start,
+                                                     remove_end=remove_end,
+                                                     cache_data=cache_data,
+                                                     log=log)
