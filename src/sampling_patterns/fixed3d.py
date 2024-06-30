@@ -25,12 +25,26 @@ class Fixed3dPattern:
         H, W = image_size
         
         # Initialize the mask
-        c = sigpy.mri.poisson(img_shape=(H, W),
-                              accel=R,
-                              calib=(num_acs_lines, num_acs_lines),
-                              dtype=np.float32,
-                              crop_corner=cut_corners,
-                              seed=seed + 1 if seed==2023 else seed) #hangs if seed is 2023
+        if H == W:
+            c = sigpy.mri.poisson(img_shape=(H, W),
+                                accel=R,
+                                calib=(num_acs_lines, num_acs_lines),
+                                dtype=np.float32,
+                                crop_corner=cut_corners,
+                                seed=seed + 1 if seed==2023 else seed) #hangs if seed is 2023
+        else:
+            c = sigpy.mri.poisson(img_shape=(H, W),
+                                accel=R,
+                                dtype=np.float32,
+                                crop_corner=cut_corners,
+                                seed=seed + 1 if seed==2023 else seed) #hangs if seed is 2023
+            
+            start_row = (H - num_acs_lines) // 2
+            start_col = (W - num_acs_lines) // 2
+            end_row = start_row + num_acs_lines
+            end_col = start_col + num_acs_lines
+            
+            c[start_row:end_row, start_col:end_col] = 1.0
         
         self.weights = torch.from_numpy(c).to(device=device, dtype=torch.float32)
     

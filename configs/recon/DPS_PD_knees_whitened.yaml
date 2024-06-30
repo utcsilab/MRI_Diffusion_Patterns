@@ -14,5 +14,5 @@ sigma_min: 0.008
 sigma_max: 5.0
 
 kwargs:
-  likelihood_step_size: 2.5
+  likelihood_step_size: 5.0
   normalize_grad: true
