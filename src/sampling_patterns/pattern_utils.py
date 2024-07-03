@@ -153,7 +153,7 @@ def get_furthest_point_3d(query_point_inds, key_point_inds, grid_x, grid_y, incl
     
     return out_idx
 
-def shape_mask_3d(H, W, flat_input, flat_input_idx, on_idx, off_idx):
+def shape_mask_3d(H, W, flat_input, flat_input_idx, on_idx, off_idx, pad_size=None):
     """
     Shapes a given flat set of weights into a 3D mask.
     
@@ -164,6 +164,7 @@ def shape_mask_3d(H, W, flat_input, flat_input_idx, on_idx, off_idx):
         flat_input_idx (np.ndarray): The indexes of the input weights in the flattened final mask. Shape [m].
         on_idx (np.ndarray): Indexes of pattern entries to set to 1.
         off_idx (np.ndarray): Indexes of pattern entries to set to 0.
+        pad_size (tuple of ints) or None: The final padded size of the output, if desired. Defaults to None.
     
     Returns:
         torch.Tensor: The shaped 3D mask. Shape [n, H, W] (n=1 if flat_input is 1d).
@@ -177,4 +178,15 @@ def shape_mask_3d(H, W, flat_input, flat_input_idx, on_idx, off_idx):
     flat_output[:, off_idx] = 0.
     flat_output[:, on_idx] = 1.
     
-    return flat_output.view(n, H, W)
+    shaped_output = flat_output.view(n, H, W)
+    
+    if pad_size is not None:
+        H_pad, W_pad = pad_size
+        H_diff = H_pad - H
+        W_diff = W_pad - W
+        
+        #[left, right, top, bottom], ordered from last dimension to first since Functional.pad expects it that way
+        pad_amounts = (W_diff // 2, W_diff - W_diff // 2, H_diff // 2, H_diff - H_diff // 2) 
+        shaped_output = F.pad(shaped_output, pad_amounts, value=0.)
+    
+    return shaped_output

@@ -7,6 +7,7 @@ train_file_list: "/raid/sr39533/pattern_exp_files/fastMRI_320-368_whitened_PD_va
 test_file_list: "/raid/sr39533/pattern_exp_files/fastMRI_320-368_whitened_PD_test_fnames.pkl"
 
 image_size: [320, 368]
+kspace_size: [320, 332]
 
 acs_size: 20
 

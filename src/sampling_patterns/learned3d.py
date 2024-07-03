@@ -9,20 +9,23 @@ from src.sampling_patterns.pattern_utils import (get_xy_radius_grid,
                                                  get_furthest_point_3d)
 
 class Learned3d:
-    def __init__(self, num_acs_lines, R, image_size, device, cut_corners, init_dist, sampler, tau=1.0):
+    def __init__(self, num_acs_lines, R, image_size, device, cut_corners, init_dist, sampler, tau=1.0, pad_size=None):
         """
         A Learned 3D pattern.
         
         Args:
             num_acs_lines (int): Number of ACS lines to keep in the center.
             R (int): Acceleration factor.
-            image_size (tuple of ints): Size of the images used with this pattern.
+            image_size (tuple of ints): Size of the k-space to use with this pattern. (H, W).
             device (torch.device): Device to store the mask on.
             cut_corners (bool): Whether to cut the corners of the 3D sampling pattern.
             init_dist (str): The distribution to sample the initial logits from. Options in [normal, uniform, random].
             sampler (str): The sampling method to use. Options in [gumbel, straight_through].
             tau (float): The temperature parameter for the Gumbel-Softmax distribution. Not used unless sampler is gumbel. 
                          Default is 1.0.
+            pad_size (tuple of ints): Size of the larger final pattern if padding is desired.
+                                      If given, both dimensions must be larger than or equal to the image size.
+                                      Optional, defaults to None in which case no padding is done.
         """
         self.num_acs_lines = num_acs_lines
         self.R = R
@@ -32,6 +35,7 @@ class Learned3d:
         self.init_dist = init_dist
         self.sampler = sampler
         self.tau = tau
+        self.pad_size = pad_size
         
         H, W = image_size
         
@@ -94,7 +98,8 @@ class Learned3d:
                                      flat_input=flat_sample, 
                                      flat_input_idx=self.insert_mask_idx, 
                                      on_idx=self.always_on_idx, 
-                                     off_idx=self.always_off_idx) #[n, H, W]
+                                     off_idx=self.always_off_idx,
+                                     pad_size=self.pad_size) #[n, H, W]
         
         return sampled_mask.unsqueeze(1) #[n, 1, H, W]
     
@@ -114,7 +119,8 @@ class Learned3d:
                                   flat_input=normed_probs, 
                                   flat_input_idx=self.insert_mask_idx, 
                                   on_idx=self.always_on_idx, 
-                                  off_idx=self.always_off_idx) #[1, H, W]
+                                  off_idx=self.always_off_idx,
+                                  pad_size=self.pad_size) #[1, H, W]
         
         return prob_mask.unsqueeze(0) #[1, 1, H, W]
     
@@ -168,7 +174,18 @@ class Learned3d:
             self.grid_y = self.grid_y.to(device=self.device)
             
         #Grab the gradients of the weights
-        grad = torch.sum(P.grad, dim=(0, 1)) #[H, W] - sum over batch and channel dimensions
+        if self.pad_size is not None:
+            H, W = self.image_size
+            H_pad, W_pad = self.pad_size
+            H_diff = H_pad - H
+            W_diff = W_pad - W
+            pad_top_end = H_diff // 2
+            pad_bottom_start = H_diff // 2 + H
+            pad_left_end = W_diff // 2
+            pad_right_start = W_diff // 2 + W
+            grad = torch.sum(P.grad[..., pad_top_end:pad_bottom_start, pad_left_end:pad_right_start], dim=(0, 1))
+        else:
+            grad = torch.sum(P.grad, dim=(0, 1)) #[H, W] - sum over batch and channel dimensions
         grad = grad.flatten() #[H*W] gradients of all points
         grad = grad[self.insert_mask_idx] #Only keep the gradients at points we still have to select
         

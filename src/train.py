@@ -50,12 +50,13 @@ def train(cfg: DictConfig) -> None:
     
     sampling_pattern = pattern_class(num_acs_lines=cfg.pattern.num_acs_lines,
                                      R=cfg.pattern.R,
-                                     image_size=cfg.data.image_size,
+                                     image_size=cfg.data.kspace_size,
                                      device=device,
                                      cut_corners=cfg.pattern.cut_corners,
                                      init_dist=cfg.pattern.init_dist,
                                      sampler=cfg.pattern.sampler,
-                                     tau=cfg.pattern.tau)
+                                     tau=cfg.pattern.tau,
+                                     pad_size=cfg.data.image_size)
     
     # (2) Setup datasets
     if cfg.data.dataset == "BrainMultiCoilWhitened":
@@ -134,7 +135,7 @@ def train(cfg: DictConfig) -> None:
     # NOTE right now this only works for 3D sampling patterns
     if cfg.training.num_iters == -1:
         updates_per_epoch = cfg.data.num_train // cfg.data.train_batch_size
-        cfg.training.num_iters = int(np.ceil(((cfg.data.image_size[0] * cfg.data.image_size[1]) / 
+        cfg.training.num_iters = int(np.ceil(((cfg.data.kspace_size[0] * cfg.data.kspace_size[1]) / 
                                     cfg.pattern.R - cfg.pattern.num_acs_lines**2) / updates_per_epoch))
         
         log.info(f"Setting epochs to {cfg.training.num_iters}")
@@ -248,7 +249,7 @@ def train(cfg: DictConfig) -> None:
                     gt_mse_unconditional = torch.mean(torch.square(resid_unconditional), dim=[1,2,3])
                     gt_mae_unconditional = torch.mean(torch.abs(resid_unconditional), dim=[1,2,3])
                     
-                    R_sample = (P.shape[2] * P.shape[3]) / torch.sum(P, dim=[1, 2, 3])
+                    R_sample = (cfg.data.kspace_size[0] * cfg.data.kspace_size[1]) / torch.sum(P, dim=[1, 2, 3])
                     
                     metrics_dict = {"train_loss": np.array([train_loss.item()] * x.shape[0]),
                                     "sigma_t": sigma_t.squeeze().detach().cpu().numpy(),
@@ -342,7 +343,7 @@ def train(cfg: DictConfig) -> None:
                 gt_mse = torch.mean(torch.square(resid), dim=[1,2,3]) 
                 gt_mae = torch.mean(torch.abs(resid), dim=[1,2,3]) 
                 
-                R_sample = (P.shape[2] * P.shape[3]) / torch.sum(P, dim=[1, 2, 3])
+                R_sample = (cfg.data.kspace_size[0] * cfg.data.kspace_size[1]) / torch.sum(P, dim=[1, 2, 3])
                 
                 metrics_dict = {"gt_mse": gt_mse.squeeze().detach().cpu().numpy(),
                                 "gt_mae": gt_mae.squeeze().detach().cpu().numpy(),

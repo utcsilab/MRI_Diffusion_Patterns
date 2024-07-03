@@ -50,12 +50,14 @@ def eval(cfg: DictConfig) -> None:
                                          image_size=cfg.data.image_size,
                                          device=device)
     elif cfg.pattern.sample_pattern == 'Fixed3dPattern':
+        #NOTE currently padding only works with 3D patterns
         sampling_pattern = Fixed3dPattern(num_acs_lines=cfg.pattern.num_acs_lines,
                                           R=cfg.pattern.R,
-                                          image_size=cfg.data.image_size,
+                                          image_size=cfg.data.kspace_size,
                                           device=device,
                                           cut_corners=cfg.pattern.cut_corners,
-                                          seed=cfg.seed)
+                                          seed=cfg.seed,
+                                          pad_size=cfg.data.image_size)
     else:
         raise NotImplementedError(f"Pattern class {cfg.pattern.sample_pattern} not implemented.") 
     
@@ -178,7 +180,7 @@ def eval(cfg: DictConfig) -> None:
                 gt_mse = torch.mean(torch.square(resid), dim=[1,2,3]) 
                 gt_mae = torch.mean(torch.abs(resid), dim=[1,2,3]) 
                 
-                R_sample = (P.shape[2] * P.shape[3]) / torch.sum(P, dim=[1, 2, 3])
+                R_sample = (cfg.data.kspace_size[0] * cfg.data.kspace_size[1]) / torch.sum(P, dim=[1, 2, 3])
                 
                 metrics_dict = {"gt_mse": gt_mse.squeeze().detach().cpu().numpy(),
                                 "gt_mae": gt_mae.squeeze().detach().cpu().numpy(),
