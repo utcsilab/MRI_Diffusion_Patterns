@@ -188,7 +188,7 @@ def train(cfg: DictConfig) -> None:
     save_images(P, ["Sample_00"], pattern_path)
     save_images(P_prob, ["Prob_00"], pattern_path)
     
-    acceleration = (torch.numel(P) / torch.sum(P)).item()
+    acceleration = (cfg.data.kspace_size[0] * cfg.data.kspace_size[1]) / torch.sum(P)
     log.info(f"Initial acceleration: {acceleration}")
     
     ##########################################
