@@ -80,10 +80,6 @@ def train(cfg: DictConfig) -> None:
     else:
         train_file_list = load_if_pickled(cfg.data.train_file_list)
         test_file_list = load_if_pickled(cfg.data.test_file_list)
-        
-        #NOTE we want to test an the first 20 volumes for brains
-        if cfg.data.dataset == "BrainMultiCoilWhitened":
-            test_file_list = test_file_list[:20]
             
         train_dataset = dataset_class(data_dir=cfg.data.data_dir,
                                      file_list=train_file_list,

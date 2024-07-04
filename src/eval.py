@@ -78,12 +78,6 @@ def eval(cfg: DictConfig) -> None:
     else:
         file_list = load_if_pickled(cfg.data.test_file_list)
         
-        #NOTE we want to test an the first 20 volumes for brains
-        if cfg.data.dataset == "BrainMultiCoilWhitened":
-            file_list = file_list[:20]
-        elif cfg.data.dataset == "KneeMultiCoilWhitened":
-            file_list = file_list[:10]
-        
         test_dataset = dataset_class(data_dir=cfg.data.data_dir,
                                      file_list=file_list,
                                      image_size=cfg.data.image_size,
