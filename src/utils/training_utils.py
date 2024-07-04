@@ -63,7 +63,9 @@ def make_noisy_sample(x, sigma_t=None):
         sigma_t (torch.Tensor): Noise standard deviation at time t. [N, 1, 1, 1] real-valued.
     """
     if sigma_t is None:
-        sigma_t = torch.rand([x.shape[0], 1, 1, 1], device=x.device)
+        sigma_t = torch.rand(1, device=x.device)
+        sigma_t = sigma_t.expand(x.shape[0], 1, 1, 1)
+        
     n = torch.randn_like(x) * sigma_t
     
     x_t = x + n

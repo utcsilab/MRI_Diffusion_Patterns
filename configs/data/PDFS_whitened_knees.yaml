@@ -19,7 +19,7 @@ cache_data: true
 # Dataloader attributes
 num_train: 500
 num_val:   30
-num_test:  287
+num_test:  270
 
 train_batch_size: 1 
 val_batch_size:   1

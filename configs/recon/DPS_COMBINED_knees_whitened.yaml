@@ -8,11 +8,6 @@ alg_type: "dps"
 defaults:
   - edm_defaults
 
-steps: 200
-S_churn: 20.0
-sigma_min: 0.008
-sigma_max: 5.0
-
 kwargs:
   likelihood_step_size: 3.0
   normalize_grad: true

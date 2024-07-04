@@ -4,9 +4,6 @@ num_acs_lines: 20
 
 R: 20
 
-#length: this is set from data
-#device: this is taken from setup
-
 cut_corners: true
 
 init_dist: 'random'
