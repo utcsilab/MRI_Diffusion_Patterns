@@ -1,7 +1,5 @@
 net_path: "/raid/sr39533/pattern_exp_files/00031-fastMRI_320-368_knees_whitened-uncond-ddpmpp-edm-gpus3-batch27-fp32-knees_white_320-368_ngf64/network-snapshot-006954.pkl"
 
-hard_consistent_output: false
-
 alg_type: "dps"
 
 #default sampling parameters from EDM
