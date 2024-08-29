@@ -226,6 +226,7 @@ def train(cfg: DictConfig) -> None:
                 if cfg.training.optimizer == "adam":
                     opt.step()
                     opt.zero_grad()
+                    # sampling_pattern.normalize_logits()
                 elif cfg.training.optimizer == "greedy_topk":
                     updates_per_epoch = cfg.data.num_train // cfg.data.train_batch_size
                     total_updates = cfg.training.num_iters * updates_per_epoch
@@ -325,12 +326,14 @@ def train(cfg: DictConfig) -> None:
             
             # (b) grab pattern, make initial noisy sample, and sample from posterior
             P = sampling_pattern.sample_mask(n=x.shape[0]).detach()
-            
             y = P * FSx
             x_hat_mvue = get_mvue_torch(y, S)
-            x_init = x_hat_mvue + cfg.recon.sigma_max * torch.randn_like(x_hat_mvue)
             
-            x_hat = recon_alg(x_init=x_init, FSx=FSx, P=P, S=S)
+            x_hat = torch.zeros_like(x)
+            for i in range(cfg.recon.num_averaged_samples):
+                x_init = x_hat_mvue + cfg.recon.sigma_max * torch.randn_like(x_hat_mvue)
+                x_hat = x_hat + recon_alg(x_init=x_init, FSx=FSx, P=P, S=S)
+            x_hat = x_hat / cfg.recon.num_averaged_samples
             
             # (d) logging metrics and saving images for the current batch
             with torch.no_grad():

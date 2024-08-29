@@ -7,3 +7,5 @@ S_noise: 1.
 
 sigma_min: 0.008
 sigma_max: 5.0
+
+num_averaged_samples: 1

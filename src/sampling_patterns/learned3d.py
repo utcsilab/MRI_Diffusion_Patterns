@@ -74,6 +74,19 @@ class Learned3d:
             List[Dict]: List of dictionaries containing the parameters.
         """
         return [{'params': self.weights}]
+    
+    @torch.no_grad()
+    def normalize_logits(self):
+        """
+        Normalizes the logits to have a mean equal to the desired sparsity level
+            (in probability space).
+        Normalization is performed in-place.
+        """
+        probs = torch.sigmoid(self.weights)
+        normed_probs = normalize_probs(probs=probs, mean=self.sparsity_level)
+        logits = torch.special.logit(normed_probs, eps=1e-6)
+        self.weights.copy_(logits)
+        return
 
     def sample_mask(self, n=1):
         """
