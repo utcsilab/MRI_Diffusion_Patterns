@@ -6,7 +6,7 @@ defaults:
 
 gpu: 0
 
-save_dir: '/raid/sr39533/sampling_pattern_results/train'
+save_dir: '/scratch/04703/sravula/sampling_pattern_results/train'
 
 seed: 2024
 

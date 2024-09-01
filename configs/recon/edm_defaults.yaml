@@ -1,12 +1,12 @@
 steps: 200
 rho: 7.0
-S_churn: 20.0
+S_churn: 40.0
 S_min: 0.0
 S_max: .inf
 S_noise: 1.
 
 sigma_min: 0.008
-sigma_max: 5.0
+sigma_max: 80.0
 
-num_averaged_samples: 1
+num_averaged_samples: 5
 hard_consistent_output: true

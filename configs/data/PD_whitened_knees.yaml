@@ -1,10 +1,10 @@
 dataset: 'KneeMultiCoilWhitened'
 
 # Instance values for dataset class
-data_dir: "/raid/sr39533/whitened_data_new_knees"
+data_dir: "/scratch/04703/sravula/MRI_experiment_files/whitened_data_new_knees"
 
-train_file_list: "/raid/sr39533/pattern_exp_files/fastMRI_320-368_whitened_PD_val_fnames.pkl"
-test_file_list: "/raid/sr39533/pattern_exp_files/fastMRI_320-368_whitened_PD_test_fnames.pkl"
+train_file_list: "/scratch/04703/sravula/MRI_experiment_files/pattern_exp_files/fastMRI_320-368_whitened_PD_val_fnames.pkl"
+test_file_list: "/scratch/04703/sravula/MRI_experiment_files/pattern_exp_files/fastMRI_320-368_whitened_PD_test_fnames.pkl"
 
 image_size: [320, 368]
 kspace_size: [320, 332]
@@ -23,4 +23,4 @@ num_test:  281
 
 train_batch_size: 1 
 val_batch_size:   1
-test_batch_size:  15
+test_batch_size:  10
