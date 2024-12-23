@@ -1,6 +1,7 @@
 from src.recon_algorithms.edm import dnnlib
 from src.utils.cg_utils import ZConjGrad, get_Aop_fun, get_cg_rhs
 from src.utils.helpers import MRI_forward_nomask, complex_to_real, real_to_complex, hard_consistency
+from src.utils.metric_utils import get_ssim, get_psnr, get_nrmse
 
 import torch
 import numpy as np
@@ -45,13 +46,14 @@ def get_noise_schedule(steps, sigma_max, sigma_min, rho, net, device):
     
     return t_steps
 
-def MRI_diffusion_sampling(net, x_init, t_steps, FSx, P, S, alg_type, hard_consistent_output=False,
+def MRI_diffusion_sampling(gt, net, x_init, t_steps, FSx, P, S, alg_type, hard_consistent_output=False,
                            S_churn=0., S_min=0., S_max=float('inf'), S_noise=1.,
                            **kwargs):
     """
     Performs conditional sampling for solving MRI inverse problems using a diffusion-based model.
     
     Args:
+        gt (torch.Tensor): The ground truth image. [N, 2, H, W] real-valued.
         net (torch.nn.Module): The EDM diffusion network.
         x_init (torch.Tensor): The initial image. Should be normalized and noised. [N, 2, H, W] real-valued.
         t_steps (torch.Tensor): The noise schedule. [steps + 1] float.
@@ -137,6 +139,21 @@ def MRI_diffusion_sampling(net, x_init, t_steps, FSx, P, S, alg_type, hard_consi
         # (1e) Take an Euler step using the gradient d_cur and the likelihood score
         x_next = x_t_hat + (t_next - t_hat) * d_cur - likelihood_score
         x_next = x_next.detach()
+        
+        with torch.no_grad():
+            if i % 5 == 0:
+                print(f"Step: {i}, Noise Level: {t_hat.item():.4f}")
+                
+                if alg_type == "repaint":
+                    x_hat = x_repaint
+                else:
+                    x_hat = x_denoised - likelihood_score
+                
+                nrmse = get_nrmse(x_hat, gt)
+                ssim = get_ssim(torch.norm(x_hat, dim=-3).unsqueeze(-3), torch.norm(gt, dim=-3).unsqueeze(-3))
+                psnr = get_psnr(torch.norm(x_hat, dim=-3).unsqueeze(-3), torch.norm(gt, dim=-3).unsqueeze(-3))
+                
+                print(f"NRMSE: {np.mean(nrmse):.4f}, SSIM: {np.mean(ssim):.4f}, PSNR: {np.mean(psnr):.4f}\n")
     
     x_hat = x_next
     if hard_consistent_output:

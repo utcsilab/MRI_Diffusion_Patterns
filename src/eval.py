@@ -166,7 +166,7 @@ def eval(cfg: DictConfig) -> None:
             x_hat = torch.zeros_like(x)
             for i in range(cfg.recon.num_averaged_samples):
                 x_init = x_hat_mvue + cfg.recon.sigma_max * torch.randn_like(x_hat_mvue)
-                x_hat = x_hat + recon_alg(x_init=x_init, FSx=FSx, P=P, S=S)
+                x_hat = x_hat + recon_alg(gt=x, x_init=x_init, FSx=FSx, P=P, S=S)
             x_hat = x_hat / cfg.recon.num_averaged_samples
             
             # (d) logging metrics and saving images for the current batch
